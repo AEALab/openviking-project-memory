@@ -18,13 +18,13 @@
  * Exit code 1 when any check fails, 0 otherwise. Never prints a full api key.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadConfig } from "./config.mjs";
-import { getStateDir } from "./session-state.mjs";
+import { getStateDir, listStates } from "./session-state.mjs";
 import {
   assessProbes,
   checkServerHealth,
@@ -421,23 +421,20 @@ async function checkConnection(report, cfg, { keyInfo, peer }, opts) {
   return { probes, summary };
 }
 
-function checkActivity(report, cfg, connection) {
+async function checkActivity(report, cfg, connection) {
   report.section("Recent activity");
   const stateDir = getStateDir(cfg);
   let states = [];
   try {
-    states = readdirSync(stateDir).filter((n) => n.endsWith(".json") && n !== "recall-compressor-profile.json").map((n) => {
-      const path = join(stateDir, n);
-      const st = statSync(path);
-      return { name: n, mtimeMs: st.mtimeMs, data: tryJson(path) };
-    }).sort((a, b) => b.mtimeMs - a.mtimeMs);
+    states = (await listStates(cfg)).map((data) => ({ data, mtimeMs: data.lastUpdatedAt || 0 }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
   } catch {
     report.info(`no session state dir at ${homeShort(stateDir)} yet — no Codex hook has run (or OPENVIKING_CODEX_STATE_DIR points elsewhere)`);
   }
   if (states.length) {
     const newest = states[0];
     const d = newest.data || {};
-    report.info(`${states.length} session state file(s) in ${homeShort(stateDir)}; newest ${fmtAge(newest.mtimeMs)}: ${d.ovSessionId || "(committed)"} captured ${d.capturedTurnCount ?? "?"} turns`);
+    report.info(`${states.length} session state file(s); newest ${fmtAge(newest.mtimeMs)}: ${d.ovSessionId || "(committed)"} captured ${d.capturedTurnCount ?? "?"} turns`);
     if (states.length > 3 && states.every((s) => (s.data?.capturedTurnCount ?? 0) === 0)) report.warn("no session has ever captured a turn", "the Stop hook runs but never appends messages", "check the Connection section; enable OPENVIKING_DEBUG=1 and read the hook log");
     const idleTtl = Number(process.env.OPENVIKING_CODEX_IDLE_TTL_MS) || 30 * 60 * 1000;
     const orphans = states.filter((s) => s.data?.ovSessionId && Date.now() - (s.data.lastUpdatedAt || s.mtimeMs) > idleTtl);
@@ -484,7 +481,7 @@ async function main() {
     configInfo = checkConfig(report, cfg);
     connection = await checkConnection(report, cfg, configInfo, opts);
     serverHealth = await checkServerHealth(report, { baseUrl: cfg.baseUrl, ovConf: configInfo.ovConf, health: connection?.probes?.health, offline: opts.offline, timeoutMs: opts.timeoutMs });
-    checkActivity(report, cfg, connection);
+    await checkActivity(report, cfg, connection);
   }
 
   if (opts.json) {

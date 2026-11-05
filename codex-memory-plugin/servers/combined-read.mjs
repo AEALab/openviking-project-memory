@@ -1,7 +1,7 @@
 // Community modification (2026-11-05): project routing and configurable multi-library reads.
 import { createOpenVikingMcpProxy } from "../scripts/shared/mcp-proxy-core.mjs";
 import { buildMcpProxyConfig, resolveMcpActorPeerId } from "../scripts/shared/mcp-proxy-config.mjs";
-import { formatReadSource, readIdentity } from "../scripts/read-routing.mjs";
+import { formatReadSource, normalizeConnectionUrl, readIdentity } from "../scripts/read-routing.mjs";
 
 const READ_TOOLS = new Set(["find", "search", "read", "list", "tree", "grep", "glob", "health"]);
 const PROTOCOL = "2025-06-18";
@@ -56,7 +56,7 @@ function sourceClient(source, fetchImpl) {
 
 function planIdentity(plan) {
   return JSON.stringify([plan.mode, plan.sources.map((s) => [s.name, s.names, s.primary,
-    readIdentity(s.config), s.config.mcpUrl, s.config.peerId, s.config.authMode, s.config.recallPeerScope])]);
+    readIdentity(s.config), normalizeConnectionUrl(s.config.mcpUrl), s.config.peerId, s.config.authMode, s.config.recallPeerScope])]);
 }
 
 function resultText(result) {
@@ -89,6 +89,8 @@ export async function createCombinedReadProxy({
     }
     for (const tool of tools.values()) {
       if (!READ_TOOLS.has(tool.name)) continue;
+      // Combined reads wrap source results, so the source output schema no longer applies.
+      delete tool.outputSchema;
       tool.description = (tool.description || tool.name) + " Reads both libraries by default; use _ov_source for a source-specific read.";
       tool.inputSchema ||= { type: "object", properties: {} };
       tool.inputSchema.properties ||= {};

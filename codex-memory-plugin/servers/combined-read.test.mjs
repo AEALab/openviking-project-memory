@@ -5,10 +5,10 @@ import test from "node:test";
 import { createCombinedReadProxy } from "./combined-read.mjs";
 
 const URI = "viking://~/memories/preferences/shared.md";
-const READS = ["read", "find", "search", "list", "tree", "grep", "glob"];
+const READS = ["read", "find", "search", "list", "tree", "grep", "glob", "health"];
 const WRITES = ["write", "remember", "forget", "set_acl", "admin_future_mutator"];
 
-async function fixture(t, { primary = "local", offline = [], results = {}, endpoints = {},
+async function fixture(t, { primary = "local", offline = [], results = {}, endpoints = {}, sourceSchemas = {},
   peerIds = { local: "local-peer", team: "team-peer" } } = {}) {
   const calls = [];
   const stalled = new Set();
@@ -44,6 +44,7 @@ async function fixture(t, { primary = "local", offline = [], results = {}, endpo
     } else if (body.method === "tools/list") {
       result = { tools: [...READS, ...WRITES, `admin_${name}`].map((toolName) => ({
         name: toolName, description: toolName, inputSchema: { type: "object", properties: {} },
+        ...sourceSchemas[name]?.[toolName],
       })) };
     } else if (body.method === "tools/call") {
       if (stalled.has(name)) {
@@ -102,6 +103,42 @@ function assertSourceIdentities(calls) {
 }
 
 for (const primary of ["local", "team"]) {
+  test(`wrapped reads omit source output schemas and ${primary} writes retain them`, async (t) => {
+    const sourceSchemas = Object.fromEntries(["local", "team"].map((source) => [source,
+      Object.fromEntries([...READS, ...WRITES].map((name) => [name, {
+        inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+        outputSchema: { type: "object", title: `${source} ${name} result`,
+          properties: { result: { type: "string" } }, required: ["result"], additionalProperties: false },
+      }])),
+    ]));
+    const results = Object.fromEntries(["local", "team"].map((source) => [source, {
+      content: [{ type: "text", text: `${source} result` }],
+      structuredContent: { result: `${source} structured result` },
+    }]));
+    const h = await fixture(t, { primary, sourceSchemas, results });
+    const inventory = (await h.rpc("tools/list")).result.tools;
+    for (const name of READS) {
+      const tool = inventory.find((tool) => tool.name === name);
+      assert.equal(Object.hasOwn(tool, "outputSchema"), false, `${name} must not advertise the source's result shape`);
+      const { _ov_source, ...properties } = tool.inputSchema.properties;
+      assert.deepEqual({ ...tool.inputSchema, properties }, sourceSchemas[primary][name].inputSchema);
+      assert.deepEqual(_ov_source.enum, ["all", "current", "local", "team"]);
+      for (const selector of _ov_source.enum) {
+        const result = await h.call(name, { query: "synthetic query", _ov_source: selector });
+        assert.equal(result.isError, false);
+        assert.equal(Object.hasOwn(result.structuredContent, "result"), false);
+        const selected = selector === "all" ? ["local", "team"] : [selector === "current" ? primary : selector];
+        assert.deepEqual(result.structuredContent.sources, selected.map((source) => ({ source, ok: true, result: results[source] })));
+      }
+    }
+    for (const name of WRITES) {
+      const tool = inventory.find((tool) => tool.name === name);
+      assert.deepEqual(tool.inputSchema, sourceSchemas[primary][name].inputSchema);
+      assert.deepEqual(tool.outputSchema, sourceSchemas[primary][name].outputSchema);
+      assert.deepEqual(await h.call(name, { query: "synthetic write" }), results[primary]);
+    }
+  });
+
   test(`session URI routing uses only URI parameters when ${primary} is primary`, async (t) => {
     const h = await fixture(t, { primary });
     const archive = "viking://~/sessions/active-project-session/history/summary.md";
@@ -261,6 +298,26 @@ test("changing read mode or a source requires restart before any source request"
       assert.match(JSON.stringify(response.error), /configuration changed; restart Codex/);
       assert.equal(h.calls.length, start);
     }
+  }
+});
+
+test("equivalent source URLs keep combined MCP usable without relaxing endpoint path checks", async (t) => {
+  const h = await fixture(t);
+  const equivalent = structuredClone(h.plan);
+  for (const source of equivalent.sources) {
+    source.config.baseUrl = `HTTPS://${source.name.toUpperCase()}.EXAMPLE.TEST:443/`;
+    source.config.mcpUrl = `HTTPS://${source.name.toUpperCase()}.EXAMPLE.TEST:443/mcp`;
+  }
+  h.setPlan(equivalent);
+  assert.equal((await h.call("read", { uri: URI })).isError, false);
+  assert.deepEqual(h.calls.filter((call) => call.body?.method === "tools/call").map((call) => call.name), ["local", "team"]);
+  for (const suffix of ["/", "/different"]) {
+    const changed = structuredClone(equivalent);
+    changed.sources[0].config.mcpUrl += suffix;
+    h.setPlan(changed);
+    const before = h.calls.length;
+    assert.ok((await h.rpc("tools/call", { name: "read", arguments: { uri: URI } })).error);
+    assert.equal(h.calls.length, before);
   }
 });
 

@@ -12,7 +12,7 @@
 import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../scripts/config.mjs";
-import { loadReadRouting } from "../scripts/read-routing.mjs";
+import { loadReadRouting, normalizeConnectionUrl } from "../scripts/read-routing.mjs";
 import { createCombinedReadProxy } from "./combined-read.mjs";
 import { createLogger } from "../scripts/debug-log.mjs";
 import {
@@ -31,7 +31,8 @@ export function readProxyConfig() {
   const cfg = loadConfig();
   const plan = loadReadRouting(cfg);
   const peerId = resolveMcpActorPeerId(cfg);
-  const identity = JSON.stringify([cfg.baseUrl, cfg.mcpUrl, cfg.apiKey, cfg.account, cfg.user,
+  const identity = JSON.stringify([normalizeConnectionUrl(cfg.baseUrl).replace(/\/+$/, ""),
+    normalizeConnectionUrl(cfg.mcpUrl), cfg.apiKey, cfg.account, cfg.user,
     peerId, cfg.authMode, cfg.recallPeerScope]);
   if (connectionIdentity !== undefined && connectionIdentity !== identity) {
     throw new Error("OpenViking connection changed; restart Codex in a new conversation.");

@@ -7,9 +7,15 @@ function text(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export function normalizeConnectionUrl(value) {
+  const url = text(value);
+  try { return new URL(url).href; }
+  catch { return url; }
+}
+
 export function readIdentity(config) {
   return JSON.stringify([
-    text(config.baseUrl).replace(/\/+$/, ""), text(config.apiKey),
+    normalizeConnectionUrl(config.baseUrl).replace(/\/+$/, ""), text(config.apiKey),
     text(config.account), text(config.user),
   ]);
 }

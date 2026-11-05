@@ -88,6 +88,14 @@ test("MCP accepts an unchanged connection when an unused server config appears",
   assert.equal(f.calls.length, before + 1);
 });
 
+test("MCP accepts equivalent URL spelling while retaining the existing connection", async (t) => {
+  const f = await fixture(t);
+  await writeFile(f.configPath, JSON.stringify({ ...f.config, url: f.config.url.replace("http:", "HTTP:") }));
+  const before = f.calls.length;
+  assert.equal((await f.rpc("tools/call", { name: "write", arguments: { value: "same endpoint" } })).error, undefined);
+  assert.equal(f.calls.length, before + 1);
+});
+
 test("MCP accepts an identical approved project connection and still enforces its enrollment", async (t) => {
   const f = await fixture(t, { globalConnection: true });
   const projectPath = join(f.project, ".openviking", "ovcli.conf");

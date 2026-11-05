@@ -64,3 +64,12 @@ instead of search text; status can read configuration symlinks while mutations
 still refuse them; secondary actor reads without a configured peer return a
 source error instead of widening to all peers. Identity and enrollment checks,
 primary-only writes and existing session locks remain in place.
+
+Combined read tools no longer advertise the upstream output schema after their
+results are wrapped by source; direct write tools retain their original schema.
+Connection comparisons normalize equivalent URL spellings, including host case
+and default ports, while preserving endpoint path differences. Verified legacy
+routes gain a canonical identity without moving cursors or locks; unverified
+legacy bindings remain blocked. Initial routes are published atomically without
+overwriting another connection's binding, and diagnostics include legacy state
+directories.

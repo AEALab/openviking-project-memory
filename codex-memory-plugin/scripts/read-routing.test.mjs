@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadReadRouting, requestReadJSON, formatReadSource } from "./read-routing.mjs";
+import { loadReadRouting, requestReadJSON, formatReadSource, readIdentity } from "./read-routing.mjs";
 
 function fixture(t) {
   const home = mkdtempSync(join(tmpdir(), "ov-read-routing-"));
@@ -51,6 +51,21 @@ test("combined primary identity validation and duplicate aliases prevent extra o
   f.write(f.team, f.localFile);
   const plan = loadReadRouting(f.current);
   assert.equal(plan.sources.length, 1); assert.deepEqual(plan.sources[0].names, ["local", "team"]);
+});
+
+test("equivalent URL spellings match and deduplicate without merging different paths or ports", (t) => {
+  const f = fixture(t); f.route();
+  const current = { ...f.current, baseUrl: "HTTPS://LOCAL.EXAMPLE:443/" };
+  assert.equal(loadReadRouting(current).sources[0].primary, true);
+  f.write(f.team, { ...f.localFile, url: "https://LOCAL.EXAMPLE:443" });
+  const plan = loadReadRouting(current);
+  assert.equal(plan.sources.length, 1);
+  assert.deepEqual(plan.sources[0].names, ["local", "team"]);
+  for (const baseUrl of ["https://local.example:8443", "https://local.example/API", "https://local.example/api"]) {
+    assert.notEqual(readIdentity({ ...current, baseUrl }), readIdentity(current));
+  }
+  assert.notEqual(readIdentity({ ...current, baseUrl: "https://local.example/API" }),
+    readIdentity({ ...current, baseUrl: "https://local.example/api" }));
 });
 
 test("directory modes match exact paths and descendants, exclude sibling prefixes, and prefer closest rules", (t) => {

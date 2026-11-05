@@ -261,4 +261,6 @@ node --test --test-concurrency=1 codex-memory-plugin/scripts/read-routing.test.m
 
 同一个会话不能跨写入连接重传。升级包、修改路径或 Key 后重新核对配置与测试，不覆盖历史状态或记忆数据。
 
+等价 URL 写法会归一比较。旧版本会话应先使用原连接配置运行一次，再调整 URL 写法；无法验证的旧身份记录会保留并拒绝恢复，不会自动清零进度。
+
 分发保留完整源码、上游归属与修改说明。上游 examples 目录的 Apache-2.0 许可及归属说明见 `LICENSE` 和 `NOTICE.md`，历史来源核对记录见 `upstream-provenance.json`。
