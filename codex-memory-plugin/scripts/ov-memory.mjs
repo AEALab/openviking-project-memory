@@ -23,10 +23,10 @@ function parseArgs(args) {
   return { command: "read", mode: args[1], global: args[2] === "--global" };
 }
 
-function readRouting(path) {
+function readRouting(path, readonly) {
   let bytes;
   try {
-    if (lstatSync(path).isSymbolicLink()) throw new CommandError("Refusing symlink read-routing.json; use a regular configuration file.");
+    if (lstatSync(path).isSymbolicLink() && !readonly) throw new CommandError("Refusing symlink read-routing.json; use a regular configuration file.");
     bytes = readFileSync(path);
   } catch (error) {
     if (error.code === "ENOENT") return { routing: { mode: "separate" }, bytes: null };
@@ -130,7 +130,7 @@ export function main(args = process.argv.slice(2)) {
     if (options.command === "help") { console.log(USAGE); return; }
     const cwd = canonicalDirectory(process.cwd());
     const path = join(homedir(), ".openviking", "read-routing.json");
-    const loaded = readRouting(path);
+    const loaded = readRouting(path, options.command === "status");
     modeFor(loaded.routing, cwd);
     let cfg;
     try { cfg = loadConfig(); }

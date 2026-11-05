@@ -310,6 +310,10 @@ async function commitAndRelease(observed, reason) {
     state.ovSessionId = null;
     await saveState(state, { touch: false, cfg });
     return { committed: true, ovSessionId, traceId };
+  }).catch((error) => {
+    if (error.code !== "OV_SESSION_LOCKED") throw error;
+    logError("session_locked", error);
+    return { committed: false, ovSessionId: null, traceId: "" };
   });
 }
 
@@ -330,6 +334,10 @@ async function maybeRetireCursorState(observed, ageMs) {
       capturedTurnCount: state.capturedTurnCount, ageMs, ttlMs: ttl });
     await clearState(state.codexSessionId, cfg);
     return true;
+  }).catch((error) => {
+    if (error.code !== "OV_SESSION_LOCKED") throw error;
+    logError("session_locked", error);
+    return false;
   });
 }
 
@@ -367,6 +375,9 @@ async function main() {
         ...state,
         workspacePeerId: effectivePeer.source === "workspace" ? effectivePeer.peerId : "",
       }, { cfg });
+    }).catch((error) => {
+      if (error.code !== "OV_SESSION_LOCKED") throw error;
+      logError("session_locked", error);
     });
   }
   log("start", {

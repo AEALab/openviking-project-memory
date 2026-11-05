@@ -32,7 +32,7 @@ export function readProxyConfig() {
   const plan = loadReadRouting(cfg);
   const peerId = resolveMcpActorPeerId(cfg);
   const identity = JSON.stringify([cfg.baseUrl, cfg.mcpUrl, cfg.apiKey, cfg.account, cfg.user,
-    peerId, cfg.authMode, cfg.recallPeerScope, cfg.cliConfigPath, cfg.ovConfigPath]);
+    peerId, cfg.authMode, cfg.recallPeerScope]);
   if (connectionIdentity !== undefined && connectionIdentity !== identity) {
     throw new Error("OpenViking connection changed; restart Codex in a new conversation.");
   }

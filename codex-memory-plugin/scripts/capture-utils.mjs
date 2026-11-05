@@ -7,6 +7,8 @@ import {
 
 export * from "./shared/capture-utils.mjs";
 
+const RETRIEVAL_OMITTED = "[OpenViking retrieved content omitted from memory capture]";
+
 function mcpResultText(result) {
   const ok = result?.Ok;
   if (Array.isArray(ok?.content)) {
@@ -179,17 +181,42 @@ function cleanCapturedMemoryText(text) {
     .replace(/<openviking-read-source\b[^>]*>[\s\S]*?<\/openviking-read-source>/gi, " "));
 }
 
+function isRetrievedMemoryOutput(part) {
+  if (part.tool_name && !/(?:^|__)(?:find|search|read|list|tree|grep|glob|health)$/.test(part.tool_name)) return false;
+  const sourceBlock = /^\s*<openviking-read-source\b[^>]*>/;
+  if (typeof part.tool_output === "string" && sourceBlock.test(part.tool_output)) return true;
+  try {
+    const result = typeof part.tool_output === "string" ? JSON.parse(part.tool_output) : part.tool_output;
+    return result?._meta?.openvikingRead === true
+      || (Array.isArray(result?.content) && result.content.some((item) =>
+        item.type === "text" && sourceBlock.test(item.text)));
+  } catch { return false; }
+}
+
 export function extractCaptureTurns(rolloutEntries, cfg = {}) {
   const deduplicated = deduplicateMcpFunctionEvents(rolloutEntries);
-  const normalized = normalizeCodexNativeToolEvents(deduplicated);
-  const turns = extractSharedCaptureTurns(normalizeCodexMcpToolEvents(normalized), cfg);
+  const normalized = normalizeCodexMcpToolEvents(normalizeCodexNativeToolEvents(deduplicated));
+  const toolNames = new Map(normalized.map((entry) => entry?.payload || entry)
+    .filter((payload) => payload?.type === "function_call")
+    .map((payload) => [payload.call_id || payload.id, payload.name]));
+  // Classify complete results before tool-output truncation can break their JSON structure.
+  const entries = normalized.map((entry) => {
+    const payload = entry?.payload || entry;
+    if (payload?.type !== "function_call_output" || !isRetrievedMemoryOutput({
+      tool_name: payload.name || payload.tool_name || payload.toolName || payload.tool
+        || payload.function?.name || payload.call?.name || toolNames.get(payload.call_id),
+      tool_output: payload.output,
+    })) return entry;
+    const redacted = { ...payload, output: RETRIEVAL_OMITTED };
+    return entry.payload ? { ...entry, payload: redacted } : redacted;
+  });
+  const turns = extractSharedCaptureTurns(entries, cfg);
   return turns.map((turn) => {
     let remaining = Number(cfg.captureMaxLength) > 0 ? Number(cfg.captureMaxLength) : 24000;
     return {
       ...turn,
-      text: turn.parts.some((part) => typeof part.tool_output === "string"
-        && /<openviking-read-source\b|"openvikingRead"\s*:\s*true/.test(part.tool_output))
-        ? "[OpenViking retrieved content omitted from memory capture]" : cleanCapturedMemoryText(turn.text),
+      text: turn.parts.some(isRetrievedMemoryOutput)
+        ? RETRIEVAL_OMITTED : cleanCapturedMemoryText(turn.text),
       parts: turn.parts.flatMap((part) => {
         if (part.type === "text") {
           if (remaining <= 0) return [];
@@ -198,8 +225,8 @@ export function extractCaptureTurns(rolloutEntries, cfg = {}) {
           remaining -= text.length;
           return [{ ...part, text }];
         }
-        if (typeof part.tool_output === "string" && /<openviking-read-source\b|"openvikingRead"\s*:\s*true/.test(part.tool_output)) {
-          return { ...part, tool_output: "[OpenViking retrieved content omitted from memory capture]" };
+        if (isRetrievedMemoryOutput(part)) {
+          return { ...part, tool_output: RETRIEVAL_OMITTED };
         }
         return part;
       }),

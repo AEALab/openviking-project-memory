@@ -135,12 +135,16 @@ export async function createCombinedReadProxy({
       let selected = selector === "all" ? plan.sources : selector === "current" ? [primary]
         : plan.sources.filter((s) => (s.names || [s.name]).includes(selector));
       // Session archive references belong to the current conversation unless a source is explicit.
-      if (selector === "all" && /viking:\/\/[^\s"]*\/sessions\//.test(JSON.stringify(input))) selected = [primary];
+      if (selector === "all" && [input.uri, input.target_uri, ...(Array.isArray(input.uris) ? input.uris : [])]
+        .some((uri) => typeof uri === "string" && /^viking:\/\/[^\s"]*\/sessions\//.test(uri))) selected = [primary];
       const results = await Promise.all(selected.map(async (source) => {
         const sourceInput = { ...input };
         if (!source.primary) {
           for (const key of ["session_id", "peer_id", "actor_peer_id", "account", "account_id", "user", "user_id"]) delete sourceInput[key];
-          if (sourceInput.peer_scope === "actor" && !source.config.peerId) sourceInput.peer_scope = "all";
+          if (sourceInput.peer_scope === "actor" && !source.config.peerId) return {
+            source: source.name, ok: false,
+            result: failure("Actor-scoped reads require a configured peerId for this source."),
+          };
         }
         try {
           const result = await clients.get(source).call(name, sourceInput);

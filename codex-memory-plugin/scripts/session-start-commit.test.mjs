@@ -395,3 +395,56 @@ test("startup defers to idle TTL when a cursor-only session is still active", as
     await rm(stateDir, { recursive: true, force: true });
   }
 });
+
+for (const blocked of ["recent", "idle", "expired-cursor", "current"]) {
+  test(`startup preserves an abandoned ${blocked} lock and still commits another idle session`, async () => {
+    const stateDir = await mkdtemp(join(tmpdir(), "ov-codex-abandoned-lock-"));
+    const requests = [];
+    const blockedId = blocked === "current" ? "new-session" : "a-blocked";
+    const lockPath = join(stateDir, blockedId + ".lock");
+    const lock = JSON.stringify({ pid: 2147483647 });
+    const debugLogPath = join(stateDir, "debug.log");
+    try {
+      const now = Date.now();
+      if (blocked !== "current") {
+        await writeFile(join(stateDir, blockedId + ".json"), JSON.stringify({
+          codexSessionId: blockedId,
+          ovSessionId: blocked === "expired-cursor" ? null : "cx-" + blockedId,
+          capturedTurnCount: 3,
+          createdAt: now - 32 * 86400000,
+          lastUpdatedAt: now - (blocked === "recent" ? 1000 : 31 * 86400000),
+        }));
+      }
+      await writeFile(lockPath, lock);
+      await writeFile(join(stateDir, "z-healthy.json"), JSON.stringify({
+        codexSessionId: "z-healthy",
+        ovSessionId: "cx-z-healthy",
+        capturedTurnCount: 2,
+        createdAt: now - 3600000,
+        lastUpdatedAt: now - 3600000,
+      }));
+      await withMockOpenViking(profileHandler(requests), async (baseUrl) => {
+        const { output } = await runSessionStart(
+          { session_id: "new-session", source: "startup", cwd: "/tmp/codex-abandoned-lock" },
+          { ...baseEnv(baseUrl, stateDir), OPENVIKING_DEBUG: "1", OPENVIKING_DEBUG_LOG: debugLogPath },
+        );
+        assert.match(output.hookSpecificOutput.additionalContext, /Works on OpenViking integrations/);
+        assert.match(output.systemMessage, /cx-z-healthy is committed/);
+      });
+      assert.deepEqual(requests.filter((request) => request.path.endsWith("/commit")).map((request) => request.path),
+        ["/api/v1/sessions/cx-z-healthy/commit"]);
+      const healthy = JSON.parse(await readFile(join(stateDir, "z-healthy.json"), "utf8"));
+      assert.equal(healthy.ovSessionId, null);
+      assert.equal(healthy.capturedTurnCount, 2);
+      assert.equal(await readFile(lockPath, "utf8"), lock);
+      if (blocked !== "current") {
+        const preserved = JSON.parse(await readFile(join(stateDir, blockedId + ".json"), "utf8"));
+        assert.equal(preserved.capturedTurnCount, 3);
+        assert.equal(preserved.ovSessionId, blocked === "expired-cursor" ? null : "cx-" + blockedId);
+      }
+      assert.match(await readFile(debugLogPath, "utf8"), /session_locked/);
+    } finally {
+      await rm(stateDir, { recursive: true, force: true });
+    }
+  });
+}

@@ -5,10 +5,11 @@ import test from "node:test";
 import { createCombinedReadProxy } from "./combined-read.mjs";
 
 const URI = "viking://~/memories/preferences/shared.md";
-const READS = ["read", "find", "search"];
+const READS = ["read", "find", "search", "list", "tree", "grep", "glob"];
 const WRITES = ["write", "remember", "forget", "set_acl", "admin_future_mutator"];
 
-async function fixture(t, { primary = "local", offline = [], results = {}, endpoints = {} } = {}) {
+async function fixture(t, { primary = "local", offline = [], results = {}, endpoints = {},
+  peerIds = { local: "local-peer", team: "team-peer" } } = {}) {
   const calls = [];
   const stalled = new Set();
   const unavailable = new Set(offline);
@@ -19,8 +20,8 @@ async function fixture(t, { primary = "local", offline = [], results = {}, endpo
       config: {
         baseUrl: `https://${name}.example.test`, mcpUrl: endpoints[name] || `https://${name}.example.test/mcp`,
         apiKey: `synthetic-${name}-key`, account: `${name}-account`, user: `${name}-user`,
-        peerId: `${name}-peer`, authMode: "trusted", sendIdentityHeaders: true,
-        recallPeerScope: "actor", timeoutMs: 1000,
+        peerId: peerIds[name], authMode: "trusted", sendIdentityHeaders: true,
+        recallPeerScope: peerIds[name] ? "actor" : "all", timeoutMs: 1000,
       },
     })),
   };
@@ -101,6 +102,61 @@ function assertSourceIdentities(calls) {
 }
 
 for (const primary of ["local", "team"]) {
+  test(`session URI routing uses only URI parameters when ${primary} is primary`, async (t) => {
+    const h = await fixture(t, { primary });
+    const archive = "viking://~/sessions/active-project-session/history/summary.md";
+    const secondary = primary === "local" ? "team" : "local";
+    for (const name of ["find", "search", "grep", "glob"]) {
+      const args = { query: `explain ${archive}`, pattern: archive, exclude_uris: [archive], target_uri: "viking://~/memories" };
+      const start = h.calls.length;
+      const result = await h.call(name, args);
+      assert.deepEqual(result.structuredContent.sources.map((source) => source.source), ["local", "team"]);
+      assert.deepEqual(h.calls.slice(start).map((call) => call.body.params.arguments), [args, args]);
+    }
+    for (const [name, args] of [
+      ["read", { uri: archive }], ["read", { uris: [URI, archive] }],
+      ...["list", "tree", "grep", "glob"].map((name) => [name, { uri: archive }]),
+      ...["search", "find"].map((name) => [name, { target_uri: archive }]),
+    ]) {
+      const start = h.calls.length;
+      const result = await h.call(name, args);
+      assert.deepEqual(result.structuredContent.sources.map((source) => source.source), [primary]);
+      assert.deepEqual(h.calls.slice(start).map((call) => [call.name, call.body.params.arguments]), [[primary, args]]);
+      const explicitStart = h.calls.length;
+      const explicit = await h.call(name, { ...args, _ov_source: secondary });
+      assert.deepEqual(explicit.structuredContent.sources.map((source) => source.source), [secondary]);
+      assert.deepEqual(h.calls.slice(explicitStart).map((call) => [call.name, call.body.params.arguments]), [[secondary, args]]);
+    }
+  });
+
+  test(`actor reads fail closed for a secondary without peerId when ${primary} is primary`, async (t) => {
+    const h = await fixture(t, { primary, peerIds: { [primary]: `${primary}-peer` } });
+    const secondary = primary === "local" ? "team" : "local";
+    const args = { query: "synthetic preference", peer_scope: "actor", session_id: "active-project-session",
+      peer_id: "foreign-peer", actor_peer_id: "foreign-actor" };
+    for (const selector of ["all", secondary]) {
+      const start = h.calls.length;
+      const result = await h.call("search", { ...args, _ov_source: selector });
+      assert.equal(result.isError, selector === secondary);
+      const denied = result.structuredContent.sources.find((source) => source.source === secondary);
+      assert.equal(denied.ok, false);
+      assert.equal(denied.result.isError, true);
+      assert.match(denied.result.content[0].text, /Actor-scoped reads require a configured peerId/);
+      assert.match(result.content.find((part) => part.text.includes(`name="${secondary}"`)).text, /configured peerId/);
+      assert.deepEqual(h.calls.slice(start).map((call) => [call.name, call.body.params.arguments]),
+        selector === "all" ? [[primary, args]] : []);
+      if (selector === "all") {
+        assert.equal(result.structuredContent.sources.find((source) => source.source === primary).ok, true);
+        assert.ok(result.content.some((part) => part.text.includes(`${primary} distinct body`)));
+      }
+    }
+    const start = h.calls.length;
+    const unscoped = await h.call("search", { query: args.query, peer_scope: "all", _ov_source: secondary });
+    assert.equal(unscoped.isError, false);
+    assert.deepEqual(h.calls.slice(start).map((call) => [call.name, call.body.params.arguments]),
+      [[secondary, { query: args.query, peer_scope: "all" }]]);
+  });
+
   test(`combined MCP reads both sources and writes only ${primary} when it is primary`, async (t) => {
     const h = await fixture(t, { primary });
     const secondary = primary === "local" ? "team" : "local";

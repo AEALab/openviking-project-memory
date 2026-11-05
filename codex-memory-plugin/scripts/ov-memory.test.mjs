@@ -106,11 +106,27 @@ test("combined validates sources and identity before directory or global mutatio
   rmSync(f.local); unchanged(f, ["read", "combined"]);unchanged(f, ["read", "combined", "--global"]);unchanged(f, ["read", "separate"], 0);
 });
 
-test("configuration symlinks are refused and command symlinks execute the CLI", (t) => {
+test("status follows configuration symlinks, mutations refuse them, and command symlinks execute the CLI", (t) => {
   const f = fixture(t), target = join(f.home, "routing-target.json"), entry = join(f.home, "ov-memory");
-  f.route({ mode: "separate" });const bytes = readFileSync(f.path);writeFileSync(target, bytes);rmSync(f.path);symlinkSync(target, f.path);
-  const result=f.run(["read", "separate"]);assert.equal(result.status, 1);assert.match(result.stderr, /Refusing symlink/);
-  assert.equal(lstatSync(f.path).isSymbolicLink(), true);assert.deepEqual(readFileSync(target), bytes);assert.deepEqual(f.backups(), []);
+  f.route({ mode: "separate", directories: { [f.project]: "separate" } });
+  const bytes = readFileSync(f.path);writeFileSync(target, bytes);rmSync(f.path);symlinkSync(target, f.path);
+  const link = lstatSync(f.path), files = readdirSync(join(f.home, ".openviking"));
+  for (const args of [[], ["status"]]) {
+    const result = unchanged(f, args, 0);assert.match(result.stdout, /read-routing.json \(configured\)/);
+    assert.ok(result.stdout.includes("Closest directory rule: " + f.project));
+  }
+  for (const args of [["read", "separate"], ["read", "combined"], ["read", "inherit"], ["read", "separate", "--global"], ["read", "combined", "--global"]]) {
+    assert.match(unchanged(f, args).stderr, /Refusing symlink/);
+  }
+  assert.equal(lstatSync(f.path).isSymbolicLink(), true);assert.equal(lstatSync(f.path).ino, link.ino);
+  assert.equal(lstatSync(f.path).mtimeMs, link.mtimeMs);assert.deepEqual(readFileSync(target), bytes);
+  assert.deepEqual(readdirSync(join(f.home, ".openviking")), files);
+  rmSync(target);
+  for (const args of [["read", "separate"], ["read", "inherit"]]) {
+    const result = f.run(args);assert.equal(result.status, 1);assert.match(result.stderr, /Refusing symlink/);
+  }
+  assert.equal(lstatSync(f.path).isSymbolicLink(), true);assert.equal(existsSync(target), false);
+  assert.deepEqual(readdirSync(join(f.home, ".openviking")), files);
   rmSync(f.path);symlinkSync(CLI, entry);assert.equal(f.run(["status"], f.project, entry).status, 0);
 });
 

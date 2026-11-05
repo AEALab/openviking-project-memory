@@ -11,11 +11,11 @@ import { fileURLToPath } from "node:url";
 
 const ENTRY = fileURLToPath(new URL("./mcp-proxy.mjs", import.meta.url));
 
-async function fixture(t) {
+async function fixture(t, { globalConnection = false } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "ov-mcp-config-")));
   const home = join(root, "home");
   const project = join(home, "project");
-  const configPath = join(project, ".openviking", "ovcli.conf");
+  const configPath = join(globalConnection ? home : project, ".openviking", "ovcli.conf");
   const registryPath = join(home, ".openviking", "project-configs.json");
   const routingPath = join(home, ".openviking", "read-routing.json");
   const calls = [];
@@ -40,7 +40,7 @@ async function fixture(t) {
     await mkdir(dir, { recursive: true });
   }
   await writeFile(configPath, JSON.stringify(config));
-  await writeFile(registryPath, JSON.stringify({ [configPath]: url }));
+  await writeFile(registryPath, JSON.stringify(globalConnection ? {} : { [configPath]: url }));
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("OPENVIKING_")));
   const child = spawn(process.execPath, [ENTRY], { cwd: project, env: { ...env, HOME: home, USERPROFILE: home } });
   const exited = once(child, "close");
@@ -77,8 +77,30 @@ async function fixture(t) {
   }
   assert.equal((await rpc("initialize", { protocolVersion: "2025-06-18" })).error, undefined);
   assert.equal((await rpc("tools/call", { name: "write", arguments: { value: "permitted" } })).error, undefined);
-  return { config, configPath, registryPath, routingPath, calls, rpc };
+  return { config, configPath, registryPath, routingPath, project, calls, rpc };
 }
+
+test("MCP accepts an unchanged connection when an unused server config appears", async (t) => {
+  const f = await fixture(t);
+  await writeFile(join(dirname(f.registryPath), "ov.conf"), "{}");
+  const before = f.calls.length;
+  assert.equal((await f.rpc("tools/call", { name: "write", arguments: { value: "same connection" } })).error, undefined);
+  assert.equal(f.calls.length, before + 1);
+});
+
+test("MCP accepts an identical approved project connection and still enforces its enrollment", async (t) => {
+  const f = await fixture(t, { globalConnection: true });
+  const projectPath = join(f.project, ".openviking", "ovcli.conf");
+  await mkdir(dirname(projectPath), { recursive: true });
+  await writeFile(projectPath, JSON.stringify(f.config));
+  await writeFile(f.registryPath, JSON.stringify({ [projectPath]: f.config.url }));
+  assert.equal((await f.rpc("tools/list")).error, undefined);
+  assert.equal((await f.rpc("tools/call", { name: "write", arguments: { value: "same connection" } })).error, undefined);
+  await writeFile(f.registryPath, "{}");
+  const before = f.calls.length;
+  assert.ok((await f.rpc("tools/call", { name: "write", arguments: { value: "must not send" } })).error);
+  assert.equal(f.calls.length, before);
+});
 
 const changes = [
   ["project enrollment is revoked", async (f) => writeFile(f.registryPath, "{}"), /Invalid project OpenViking config/],

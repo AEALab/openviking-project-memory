@@ -52,6 +52,60 @@ test("ordinary tool output and user/assistant text stay intact", () => {
   assert.equal(turns[2].parts[0].tool_output, "Ordinary build output.");
 });
 
+test("ordinary tools keep literal memory markers and JSON examples", () => {
+  for (const output of [
+    "Build passed. Example literal: <openviking-read-source",
+    `Build passed. Example block: ${wrapper}`,
+    JSON.stringify({ _meta: { openvikingRead: true }, content: [{ type: "text", text: wrapper }] }),
+  ]) {
+    for (const entries of [
+      [{ payload: { type: "function_call", call_id: "shell", name: "exec_command", arguments: "{}" } },
+        { payload: { type: "function_call_output", call_id: "shell", output } }],
+      [{ payload: { type: "function_call_output", call_id: "shell", name: "exec_command", output } }],
+      [{ payload: { type: "function_call_output", call_id: "shell", tool_name: "exec_command", output } }],
+    ]) {
+      const turns = extractCaptureTurns(entries, cfg);
+      assert.equal(turns.length, entries.length);
+      assert.equal(turns.at(-1).parts[0].tool_output, output);
+    }
+  }
+});
+
+test("read tools keep ordinary marker mentions but omit structured retrieval results", () => {
+  for (const output of [
+    "Documentation mentions <openviking-read-source without returning memory.",
+    'Example setting: "openvikingRead": true',
+  ]) {
+    const turns = extractCaptureTurns([
+      { payload: { type: "function_call", call_id: "read", name: "read", arguments: "{}" } },
+      { payload: { type: "function_call_output", call_id: "read", output } },
+    ], cfg);
+    assert.equal(turns[1].parts[0].tool_output, output);
+  }
+  const turns = extractCaptureTurns([
+    { payload: { type: "function_call", call_id: "read", name: "mcp__openviking_memory__read", arguments: "{}" } },
+    { payload: { type: "function_call_output", call_id: "read", output: JSON.stringify({
+      _meta: { openvikingRead: true }, content: [{ type: "text", text: privateText }],
+    }) } },
+  ], cfg);
+  assert.ok(!JSON.stringify(turns).includes(privateText));
+});
+
+test("retrieval filtering survives tool-output truncation and missing call records", () => {
+  const result = { content: [{ type: "text", text: wrapper + "synthetic long result ".repeat(100) }],
+    _meta: { openvikingRead: true } };
+  const output = { payload: { type: "function_call_output", call_id: "read", output: JSON.stringify(result) } };
+  for (const entries of [
+    [output],
+    [{ payload: { type: "function_call", call_id: "read", name: "read", arguments: "{}" } }, output],
+  ]) {
+    const turns = extractCaptureTurns(entries, { ...cfg, captureToolMaxChars: 200 });
+    assert.equal(turns.length, entries.length);
+    assert.ok(!JSON.stringify(turns).includes(privateText));
+    assert.match(turns.at(-1).parts[0].tool_output, /omitted/);
+  }
+});
+
 test("profile user-path discovery is scoped to each request client", async () => {
   function client(user, calls) {
     return async (path) => {

@@ -50,3 +50,17 @@ hook paths are quoted; package validation checks complete file coverage and
 runtime references. Regression tests use synthetic data and local mock services.
 
 Repository distribution: use a fixed openviking-project-memory directory and AEALab GitHub repository; ignore Git metadata during source verification. Plugin runtime behavior is unchanged.
+
+SessionStart lock isolation: a busy or abandoned session lock is logged and
+skipped during initialization, orphan commit and cursor cleanup, so other
+sessions can still be processed. Locked state and lock files remain intact;
+other errors retain their existing failure behavior. Regression tests cover
+recent, idle, expired-cursor and current-session locks.
+
+Narrow defensive checks: configuration paths no longer count as connection
+identity; capture filters confirmed retrieval results before truncation while
+preserving ordinary tool examples; session archive routing checks URI fields
+instead of search text; status can read configuration symlinks while mutations
+still refuse them; secondary actor reads without a configured peer return a
+source error instead of widening to all peers. Identity and enrollment checks,
+primary-only writes and existing session locks remain in place.
