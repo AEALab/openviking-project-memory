@@ -27,7 +27,7 @@ cd openviking-project-memory
 插件内部版本号用于 Codex 缓存与升级识别。
 
 在 Codex 中可把这个目录交给 AI，要求先读取本 README，
-再按“方式 A”或“方式 B”安装；需要提供自己的服务地址、Key 和启用范围。
+再按第 2 节选择的场景安装；需要提供自己的服务地址、Key 和启用范围。
 
 在项目根目录运行结构与校验和检查：
 
@@ -39,11 +39,28 @@ node verify-package.mjs
 
 ## 2. 选择连接方式（个人库不是必需项）
 
-`~/.openviking/ovcli.conf` 表示“全局默认连接”，可以指向个人服务，也可以指向团队服务。下面先说明两库配置，再列出无需个人库的两种方式。
+先选择使用场景。连接配置决定使用哪个库，插件和独立 MCP 的开关决定哪些项目启用。
 
-- 将 `examples/personal.ovcli.example.json` 复制为 `~/.openviking/ovcli.conf`，填写个人服务地址和 Key。
-- 将 `examples/team.ovcli.example.json` 复制为 `~/.openviking/read-sources/team.ovcli.conf`，填写团队服务地址和 Key。
-- 将 `examples/read-routing.example.json` 复制为 `~/.openviking/read-routing.json`；已有配置时合并，不直接覆盖。
+| 使用场景 | 全局默认连接 | 读取模式 | 插件和独立 MCP 启用范围 | 项目额外配置 |
+|---|---|---|---|---|
+| 有个人库，只使用个人库 | 个人库 | `separate` | 全局启用 | 无 |
+| 有个人库，同时使用团队库 | 个人库 | `combined`，也可按目录设为 `separate` | 默认全局启用 | 写团队的项目配置团队连接并登记 |
+| 没有个人库，方式 A | 团队库 | `separate` | 全局启用 | 共用全局连接时无需配置 |
+| 没有个人库，方式 B | 团队库 | `separate` | 全局关闭，指定项目启用 | 只配置项目启用开关 |
+
+`~/.openviking/ovcli.conf` 表示“全局默认连接”，可以指向个人服务，也可以指向团队服务。有个人库时同样可以选择仅指定项目启用，开关配置见第 5 节。
+
+### 有个人库：只使用个人库，或同时使用团队库
+
+| 配置文件 | 只使用个人库 | 同时使用个人库和团队库 |
+|---|---|---|
+| `~/.openviking/ovcli.conf` | 使用 `examples/personal.ovcli.example.json`，填写个人地址和 Key | 同左 |
+| `~/.openviking/read-sources/team.ovcli.conf` | 不需要 | 使用 `examples/team.ovcli.example.json`，填写团队地址和自己的团队 Key |
+| `~/.openviking/read-routing.json` | 使用 `examples/read-routing.separate.example.json` | 使用 `examples/read-routing.example.json`，按第 4 节设置目录规则 |
+| 用户级 `~/.codex/config.toml` | 合并 `examples/codex-config.example.toml` | 同左 |
+| 项目 `.openviking/ovcli.conf` 和用户级登记 | 不需要 | 仅写团队的项目按第 3 节配置；其他项目仍写个人库 |
+
+以上文件已有配置时合并，不直接覆盖。双库读取只改变检索来源，不会同时写两个库。
 
 双库方式创建下面的两个连接文件后，在 macOS/Linux 上把凭据目录设为 `0700`、凭据文件设为 `0600`。单库方案只对实际创建的文件设置权限。备份中也可能含 Key，不公开分享。
 
@@ -63,14 +80,15 @@ chmod 600 "$HOME/.openviking/ovcli.conf" "$HOME/.openviking/read-sources/team.ov
 
 此时不需要个人服务、不需要 `read-sources/team.ovcli.conf`，也不需要 `sources.local`。没有特殊项目覆盖时，读取和写入都使用全局团队连接。这里不是把团队 Key 填成个人 Key，而是把团队连接设成默认连接。
 
-### 方式 B：没有全局连接，只在指定项目使用团队库
+### 方式 B：全局配置团队连接，只在指定项目启用
 
-1. 可以不创建全局 `~/.openviking/ovcli.conf`，也无需第二读取来源。
-2. 在需要使用记忆的项目根目录创建 `.openviking/ovcli.conf`，填写团队地址和 Key，加入 Git 忽略，并按第 3 节登记到用户级 `project-configs.json`。
-3. 用户级读取配置使用 `examples/read-routing.separate.example.json`。
-4. **安装完成后**，把 `examples/codex-config.project-only.example.toml` 合并进用户级 `~/.codex/config.toml`：全局关闭本插件和独立 MCP，但保留其启动命令。
-5. 在指定项目的 `.codex/config.toml` 合并 `examples/project-codex-config.example.toml`，只在该项目开启插件和独立 MCP。项目配置需要由 Codex 信任后加载。
-6. 检查普通目录中两者关闭、指定项目中两者开启，然后重启并新建会话。
+1. 把 `examples/team.ovcli.example.json` 复制为 `~/.openviking/ovcli.conf`，填写团队地址和自己的团队 Key。连接只配置一次，无需第二读取来源。
+2. 用户级读取配置使用 `examples/read-routing.separate.example.json`，或将已有配置改为 `separate` 并清空不需要的目录覆盖。
+3. **安装完成后**，把 `examples/codex-config.project-only.example.toml` 合并进用户级 `~/.codex/config.toml`：全局关闭本插件和独立 MCP（两者均为 `enabled = false`），但保留其启动命令。
+4. 在指定项目的 `.codex/config.toml` 合并 `examples/project-codex-config.example.toml`，只在该项目开启插件和独立 MCP（两者均为 `enabled = true`）。项目配置需要由 Codex 信任后加载，MCP 启动命令继承用户级配置。
+5. 检查普通目录中两者关闭、指定项目中两者开启，然后重启并新建会话。
+
+共用全局团队连接的项目无需创建 `.openviking/ovcli.conf`，也无需登记 `project-configs.json`。只有项目需要不同连接时，才按第 3 节配置项目覆盖。
 
 **不要只关闭插件而遗漏独立 MCP**。两者都全局关闭后，普通目录不启用本包的自动记忆或 MCP；只有指定项目加载它们。
 
@@ -78,15 +96,22 @@ chmod 600 "$HOME/.openviking/ovcli.conf" "$HOME/.openviking/read-sources/team.ov
 
 `combined` 模式要求两个完整有效的来源，并且当前写入身份匹配其中之一。只有团队库时应使用 `separate`，不要留下缺失个人来源的双库配置。
 
-## 3. 选择哪些项目写团队
+## 3. 按需覆盖项目写入连接
 
-没有项目覆盖时，写入使用 `~/.openviking/ovcli.conf` 的默认连接；该连接可以是个人库或团队库。仅项目启用方案不设置全局连接，因此必须同时关闭全局插件和独立 MCP。
+没有项目覆盖时，写入使用 `~/.openviking/ovcli.conf` 的默认连接；该连接可以是个人库或团队库。方式 B 通过全局关闭插件和独立 MCP、指定项目开启两者来控制启用范围，连接仍使用全局默认。
 
-需要写团队的项目，在 Git 根目录创建 `.openviking/ovcli.conf`，内容使用该项目的团队连接。将该目录加入本地 Git 的 `info/exclude` 或项目 `.gitignore`，确认 `git check-ignore .openviking/ovcli.conf` 能匹配；文件设为 `0600`，目录设为 `0700`。
+| 项目需求 | 是否需要项目连接和登记 | 写入目标 |
+|---|---|---|
+| 使用全局个人连接 | 否 | 个人库 |
+| 使用全局团队连接（方式 A、B） | 否 | 团队库 |
+| 全局是个人连接，当前项目要写团队 | 是 | 项目配置的团队库 |
+| 当前项目需要另一个团队连接 | 是 | 项目配置的团队库 |
+
+只有需要覆盖全局默认连接的项目，才在 Git 根目录创建 `.openviking/ovcli.conf`，内容使用该项目的团队连接。将该目录加入本地 Git 的 `info/exclude` 或项目 `.gitignore`，确认 `git check-ignore .openviking/ovcli.conf` 能匹配；文件设为 `0600`，目录设为 `0700`。
 
 随后在 `~/.openviking/project-configs.json` 登记“项目配置文件的实际绝对路径 → 团队服务地址”。示例见 `examples/project-configs.example.json`。地址必须与项目连接文件一致。
 
-未登记、配置损坏、地址不符或已登记但文件缺失时会停止发送。没有团队写入项目时，登记文件可省略或设为 `{}`。
+项目覆盖未登记、配置损坏、地址不符或已登记但文件缺失时会停止发送。没有项目连接覆盖时，登记文件可省略或设为 `{}`。
 
 ## 4. 设置目录级读取模式
 
@@ -106,19 +131,29 @@ chmod 600 "$HOME/.openviking/ovcli.conf" "$HOME/.openviking/read-sources/team.ov
 }
 ```
 
-- `mode` 为未匹配目录的全局默认。
-- `directories` 为工作目录覆盖规则，键是实际绝对路径，也支持 `~/`。
-- `separate` 只读取当前目录对应的写入库；如果该项目写团队，则只读团队，不一定是个人库。
-- `combined` 同时读取个人和团队，自动检索和 MCP 工具均生效。
-- 子目录继承最近匹配的规则，更深的规则优先；`project-a` 不会误匹配 `project-a2`。
-- 没有任何目录覆盖时，将 `directories` 留为 `{}`。
-- 模式切换不改变写入目标；修改后重启 Codex 并新建会话。
+| 配置项或模式 | 含义 |
+|---|---|
+| `mode` | 未匹配目录的全局默认读取模式 |
+| `directories` | 目录覆盖规则，键为实际绝对路径，也支持 `~/`；没有覆盖时留为 `{}` |
+| `separate` | 只读当前目录对应的写入库；写个人就只读个人，写团队就只读团队 |
+| `combined` | 同时读取个人和团队，自动检索和 MCP 工具均生效 |
+
+规则优先级为：当前目录规则 → 最近的父目录规则 → 全局默认。子目录继承最近匹配的规则，更深的规则优先；`project-a` 不会误匹配 `project-a2`。在子目录切换只创建该子目录规则，不会自动改项目根目录。
+
+模式切换不改变写入目标或插件启用状态；修改后重启 Codex 并新建会话。终端和技能的切换方法见第 7 节。
 
 来源与目录规则只在用户目录管理，不允许仓库自行提供新的检索地址。当前写入身份需匹配双库来源之一。团队 Key 变化时同时维护团队来源和相关项目配置。
 
 ## 5. 合并 Codex 配置并安装
 
 按选择的使用方式，把对应模板合并到 `~/.codex/config.toml`：全局使用选 `examples/codex-config.example.toml`，仅指定项目使用选 `examples/codex-config.project-only.example.toml`。填写 Node、项目目录和用户目录的实际绝对路径。不要覆盖现有模型、其他 MCP 和写目录，也不要重复声明同名 TOML 表。
+
+| 配置位置 | 所有项目默认启用 | 仅指定项目启用 |
+|---|---|---|
+| 用户级插件 `enabled` | `true` | `false` |
+| 用户级独立 MCP `enabled` | `true`（模板省略时默认启用） | `false`，保留 `command`、`args` 等启动配置 |
+| 用户级插件内置 MCP `enabled` | `false` | `false` |
+| 指定项目 `.codex/config.toml` | 无需额外启用 | 合并 `examples/project-codex-config.example.toml`，插件和独立 MCP 均设为 `true` |
 
 本包独立 marketplace 名称为 `openviking-project`；插件标识为 `openviking-memory@openviking-project`。原版若已启用，应先关闭原版对应条目，避免同一聊天被两组 hooks 重复捕获。
 
@@ -171,14 +206,18 @@ export PATH="$HOME/.local/bin:$PATH"
 
 已有同名命令时先核对来源，不直接覆盖。若新终端没有该 PATH，按所用 shell 的设置方式保留该目录。
 
-```sh
-ov-memory status
-ov-memory read separate
-ov-memory read combined
-ov-memory read inherit
-ov-memory read separate --global
-ov-memory read combined --global
-```
+终端与 Codex 技能使用同一套规则。下表的终端命令使用已配置的 `ov-memory` 链接；未配置链接时，将 `ov-memory` 替换为 `node "/实际项目目录/ov-memory.mjs"`。
+
+| 目的 | 终端命令 | Codex 技能用法 | 影响范围 |
+|---|---|---|---|
+| 查看配置 | `ov-memory status` | `$openviking-memory:ov-memory 查看当前目录的记忆配置` | 只读，不修改 |
+| 当前目录单库 | `ov-memory read separate` | `$openviking-memory:ov-memory 把当前目录改成单库读取` | 当前目录及继承它的子目录 |
+| 当前目录双库 | `ov-memory read combined` | `$openviking-memory:ov-memory 把当前目录改成双库读取` | 当前目录及继承它的子目录 |
+| 当前目录恢复继承 | `ov-memory read inherit` | `$openviking-memory:ov-memory 让当前目录恢复继承` | 移除当前目录规则，继续继承父目录或全局 |
+| 全局默认单库 | `ov-memory read separate --global` | `$openviking-memory:ov-memory 把全局默认改成单库读取` | 没有目录覆盖的范围，已有目录规则保留 |
+| 全局默认双库 | `ov-memory read combined --global` | `$openviking-memory:ov-memory 把全局默认改成双库读取` | 没有目录覆盖的范围，已有目录规则保留 |
+
+终端以执行命令时的工作目录为准，技能默认以当前工作区为准；两者将规则保存在用户级 `~/.openviking/read-routing.json`，不会在项目内生成读取配置。其他平级目录不受当前目录切换影响；子目录有自己的规则时，继续使用自己的规则。双库切换要求已配置两个有效来源。
 
 - `status` 只读，不访问记忆服务，不创建配置或备份；显示当前目录、全局默认、最近目录规则、配置有效模式和写入来源，不打印 Key。
 - 不加 `--global` 只修改当前目录；`inherit` 只删除当前目录的规则，继续继承父目录或全局。
@@ -188,16 +227,7 @@ ov-memory read combined --global
 - 通过独占锁避免两个命令互相覆盖；竞争时提示重试。若进程被强制终止留下 `read-routing.json.lock`，先核对锁中 PID、确认没有写入命令运行后再移除，不能自动强删。
 - 配置文件本身是软链接时，命令会拒绝操作；工作目录的软链接可正常归一化。
 
-本包还包含 `ov-memory` 技能，Codex 原生显示名为 `openviking-memory:ov-memory`。在启用本插件的 Codex 项目中，重启后可使用：
-
-```text
-$openviking-memory:ov-memory 查看当前目录的记忆配置
-$openviking-memory:ov-memory 把当前目录改成双库读取
-$openviking-memory:ov-memory 让当前目录恢复继承
-$openviking-memory:ov-memory 把全局默认改成单库读取
-```
-
-技能随插件提供，不需要再复制到用户的独立 skills 目录，也不依赖终端别名已安装。技能调用同一份 CLI，默认当前目录，只有明确要求全局时才传 `--global`。
+本包的 `ov-memory` 技能在 Codex 中显示为 `openviking-memory:ov-memory`。技能随插件提供，在启用本插件的 Codex 项目中重启后可使用，不需要再复制到用户的独立 skills 目录，也不依赖终端别名已安装。技能调用同一份 CLI，默认当前目录，只有明确要求全局时才传 `--global`。
 
 命令修改的是配置文件，不代表运行中的 MCP 已热切换。`status` 将当前活跃 MCP 模式标为未知；修改后重启 Codex 并新建会话。命令不改 Key、写入目标、插件启用状态或记忆数据。
 

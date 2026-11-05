@@ -12,7 +12,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = resolve(SCRIPT_DIR, "..");
 const PLUGIN_ID = "openviking-memory@openviking-project";
 
-async function fixture(t, { enabled = false, projectEnabled, trust, mcpEnabled = enabled, bundledEnabled = false, cliEnabled = enabled } = {}) {
+async function fixture(t, { enabled = false, projectEnabled, trust, mcpEnabled = enabled, bundledEnabled = false, cliEnabled = enabled, globalConnection = false } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "ov-doctor-test-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const home = join(root, "home");
@@ -46,13 +46,12 @@ enabled = ${projectEnabled}
 [mcp_servers.openviking-memory]
 enabled = ${projectEnabled}
 `);
-  // Method B has a project connection and no global connection.
-  const connectionDir = projectEnabled === undefined ? join(home, ".openviking") : join(project, ".openviking");
-  if (enabled || projectEnabled) {
+  const connectionDir = globalConnection || projectEnabled === undefined ? join(home, ".openviking") : join(project, ".openviking");
+  if (enabled || projectEnabled || globalConnection) {
     await mkdir(connectionDir, { recursive: true });
     const connectionPath = join(connectionDir, "ovcli.conf");
     await writeFile(connectionPath, JSON.stringify({ url: "http://127.0.0.1:9", api_key: "fixture-key-never-sent" }), { mode: 0o600 });
-    if (projectEnabled) await writeFile(join(home, ".openviking", "project-configs.json"), JSON.stringify({ [connectionPath]: "http://127.0.0.1:9" }));
+    if (projectEnabled && !globalConnection) await writeFile(join(home, ".openviking", "project-configs.json"), JSON.stringify({ [connectionPath]: "http://127.0.0.1:9" }));
   }
   await writeFile(join(bin, "codex"), `#!${process.execPath}
 const args = process.argv.slice(2).join(" ");
@@ -107,6 +106,26 @@ test("ordinary directories keep both defaults disabled without any global connec
   assert.match(text, /independent MCP is disabled for the current directory/);
   assert.match(text, /project-only mode does not require a global OpenViking connection/);
   assert.doesNotMatch(text, /create ~\/.openviking\/ovcli.conf|nothing listens|no usable config/);
+});
+
+test("project-only mode uses the global connection without a project connection or registry", async (t) => {
+  const f = await fixture(t, { projectEnabled: true, trust: "trusted", globalConnection: true });
+  const { report, findings, text } = await f.run();
+  assert.equal(report.resolved.baseUrl, "http://127.0.0.1:9");
+  assert.match(text, /user-level plugin default is disabled/);
+  assert.match(text, /plugin configured enabled in current project configuration/);
+  assert.match(text, /independent MCP launch command\/args are configured/);
+  assert.match(text, /bundled plugin MCP is disabled/);
+  assert.ok(findings.some((finding) => finding.title.startsWith("ovcli.conf: ~/.openviking/ovcli.conf (mode 600,")));
+  assert.doesNotMatch(text, /trust is not verified|nothing listens|no usable config/);
+});
+
+test("ordinary directories keep both defaults disabled even with a global connection", async (t) => {
+  const f = await fixture(t, { globalConnection: true });
+  const { report, text } = await f.run();
+  assert.equal(report.resolved, null);
+  assert.match(text, /plugin is disabled for the current directory/);
+  assert.match(text, /independent MCP is disabled for the current directory/);
 });
 
 test("normal global mode keeps its independent MCP enabled", async (t) => {
