@@ -1,0 +1,20 @@
+{
+  "commands": [
+    "status",
+    "read separate",
+    "read combined",
+    "read inherit",
+    "read separate --global",
+    "read combined --global"
+  ],
+  "cliTests": 10,
+  "backupAndAtomicSave": "PASS",
+  "exclusiveWriterLock": "PASS",
+  "noOpPreservesBytes": "PASS",
+  "currentDirectoryAndGlobalScopes": "PASS",
+  "existingUserReadConfigurationPreserved": true,
+  "realMemoryServiceRequests": 0,
+  "realModelRequests": 0,
+  "version": "0.7.7-project.4",
+  "verifiedAsPartOfFullSuite": true
+}

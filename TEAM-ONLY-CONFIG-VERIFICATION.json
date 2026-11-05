@@ -1,0 +1,10 @@
+{
+  "version": "0.7.7-project.4",
+  "teamOnlyRuntimeRouting": "PASS (mock services)",
+  "projectOnlyWithoutGlobalConnection": "PASS (isolated doctor/config fixtures)",
+  "outsidePluginAndIndependentMcpDisabled": "PASS (isolated configuration fixtures)",
+  "projectPluginAndIndependentMcpEnabled": "PASS (trusted configuration fixture)",
+  "unverifiedProjectTrust": "reported as configured, not proven active",
+  "realCodexProjectTrustFlow": "not exercised",
+  "realServiceRequests": 0
+}

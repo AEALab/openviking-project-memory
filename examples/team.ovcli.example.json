@@ -1,0 +1,10 @@
+{
+  "url": "https://openviking.example.com",
+  "api_key": "<TEAM_API_KEY>",
+  "plugin": {
+    "codex": {
+      "recallCompress": "off",
+      "recallQueryExpansion": "off"
+    }
+  }
+}

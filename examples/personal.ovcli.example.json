@@ -1,0 +1,10 @@
+{
+  "url": "http://127.0.0.1:1933",
+  "api_key": "<PERSONAL_API_KEY>",
+  "plugin": {
+    "codex": {
+      "recallCompress": "off",
+      "recallQueryExpansion": "off"
+    }
+  }
+}

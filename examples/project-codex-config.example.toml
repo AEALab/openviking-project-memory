@@ -1,0 +1,7 @@
+# Merge into the trusted project's .codex/config.toml.
+# Global config retains command/args, keeps bundled plugin MCP disabled, and disables both entries by default.
+[plugins."openviking-memory@openviking-project"]
+enabled = true
+
+[mcp_servers.openviking-memory]
+enabled = true

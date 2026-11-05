@@ -1,0 +1,8 @@
+{
+  "mode": "combined",
+  "sources": {
+    "local": "~/.openviking/ovcli.conf",
+    "team": "~/.openviking/read-sources/team.ovcli.conf"
+  },
+  "directories": {}
+}

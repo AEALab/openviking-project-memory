@@ -1,0 +1,18 @@
+{
+  "marketplace": "openviking-project",
+  "pluginId": "openviking-memory@openviking-project",
+  "version": "0.7.7-project.4",
+  "isolatedNativeInstall": "PASS",
+  "nativeInstallWithSpaceInHome": "PASS",
+  "cachedSkills": [
+    "openviking-memory",
+    "ov-experience-memory",
+    "ov-memory",
+    "ov-memory-doctor"
+  ],
+  "hookCommandsQuoted": "PASS",
+  "existingUserConfigurationChanged": false,
+  "realMemoryServiceRequests": 0,
+  "realModelRequests": 0,
+  "nativeProjectTrustAndSkillDiscovery": "not independently exercised in this release; restart/trust verification remains required"
+}

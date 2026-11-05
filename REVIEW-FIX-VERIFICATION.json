@@ -1,0 +1,42 @@
+{
+  "version": "0.7.7-project.4",
+  "verifiedAt": "2026-11-05T03:41:37.335119+00:00",
+  "findings": {
+    "redirectCredentialAndMessageLeak": "fixed; REST and MCP reject redirects",
+    "mixedConfigurationSnapshots": "fixed; credentials/settings/request-state share validated snapshots",
+    "concurrentCapture": "fixed; session transactions serialized",
+    "singleSourceMcpConfigurationRevocation": "fixed; validate before tools/call and tools/list",
+    "projectOnlyDoctor": "fixed; distinguish defaults/project overrides/trust evidence",
+    "sharedStateDirectoryOwnership": "fixed; filter and validate routes before cleanup",
+    "uploadedTextLength": "fixed; cap actual text parts",
+    "offlineInventoryRecovery": "fixed; retry unavailable sources on tools/list",
+    "testHomeIsolation": "fixed; normal-user full suite passes",
+    "packageCompleteness": "fixed; exact file count, full checksum coverage and runtime-reference checks",
+    "hookPathSpaces": "fixed; shell expansion and inline-substitution execution tests",
+    "preCompactBatchProgress": "fixed; persist successful batches before next request"
+  },
+  "fullSuite": {
+    "testFiles": 21,
+    "passed": 164,
+    "failed": 0
+  },
+  "independentReview": "no outstanding confirmed blocking finding",
+  "nativeInstall": "PASS in isolated HOME containing spaces",
+  "notChecked": [
+    "real memory/model service requests",
+    "Windows native installation",
+    "real Codex project trust/activation flow"
+  ],
+  "operationalLimits": [
+    "connection/read-mode changes require a new Codex session",
+    "abandoned session locks require PID verification before manual removal"
+  ],
+  "distribution": "Git source repository",
+  "repository": "AEALab/openviking-project-memory",
+  "sourceSnapshotChanges": [
+    "fixed directory name",
+    "repository clone instructions",
+    "root Git ignore rules",
+    "Git metadata excluded from snapshot verification"
+  ]
+}

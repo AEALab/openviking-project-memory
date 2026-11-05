@@ -1,0 +1,9 @@
+{
+  "version": "0.7.7-project.4",
+  "actualConfiguredKeyScan": "PASS",
+  "personalPathAndPrivateAddressScan": "PASS",
+  "userConfigFiles": "not included",
+  "memoryData": "not included",
+  "conversationLogs": "not included",
+  "platformMetadata": "excluded"
+}

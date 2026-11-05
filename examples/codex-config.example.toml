@@ -1,0 +1,25 @@
+# Merge into existing config.toml; replace absolute path placeholders.
+[features]
+hooks = true
+plugin_hooks = true
+
+[plugins."openviking-memory@openviking-project"]
+enabled = true
+
+[plugins."openviking-memory@openviking-project".mcp_servers.openviking-memory]
+enabled = false
+
+[mcp_servers.openviking-memory]
+command = "/absolute/path/to/node"
+args = ["/absolute/path/to/openviking-project-memory/codex-memory-plugin/servers/mcp-proxy.mjs"]
+startup_timeout_sec = 30
+
+[sandbox_workspace_write]
+writable_roots = [
+  "/absolute/path/to/user-home/.openviking/codex-plugin-state",
+  "/absolute/path/to/user-home/.openviking/logs"
+]
+
+# Disable the original plugin only if it is already installed, to avoid duplicate hooks.
+[plugins."openviking-memory@openviking"]
+enabled = false

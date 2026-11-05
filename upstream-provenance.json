@@ -1,0 +1,21 @@
+{
+  "repository": "https://github.com/volcengine/OpenViking",
+  "pluginVersion": "0.7.7",
+  "referenceCommit": "206054cf150a117b0a4416b4f754c6f4e4e59cb4",
+  "licensePath": "examples/LICENSE",
+  "licenseSha256": "081a54b68d890cdbcfdfb97b79f32504b4ed320f52d5f8abdae806e5cbee2ad6",
+  "unchangedFileChecks": [
+    {
+      "file": ".mcp.json",
+      "unchangedMatch": true
+    },
+    {
+      "file": "hooks/hooks.json",
+      "unchangedMatch": true
+    },
+    {
+      "file": "scripts/shared/credentials.mjs",
+      "unchangedMatch": true
+    }
+  ]
+}

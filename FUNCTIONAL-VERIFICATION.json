@@ -1,0 +1,11 @@
+{
+  "version": "0.7.7-project.4",
+  "verifiedAt": "2026-11-05T03:41:37.335119+00:00",
+  "testFiles": 21,
+  "passed": 164,
+  "failed": 0,
+  "environment": "source-repository regressions use isolated fixtures and mock services",
+  "upstreamMarketplaceTests": "excluded; require complete upstream repository",
+  "realMemoryServiceRequests": 0,
+  "realModelRequests": 0
+}
