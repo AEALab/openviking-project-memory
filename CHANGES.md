@@ -26,6 +26,18 @@ Modified/added runtime and test files:
 
 Package metadata and installation documentation are community-specific. Upstream notices are retained; see NOTICE.md.
 
+npm distribution (0.1.0 / plugin 0.7.7-project.5): publish as
+`@haowux/openviking-project-memory`; global installation registers the local
+marketplace and plugin, configures independent stdio MCP with absolute paths,
+and enables new installations globally. Reinstallation preserves existing
+disabled settings. The installer backs up Codex configuration with private
+permissions, preserves unrelated settings, and restores the prior plugin
+enabled setting on failure. `openviking-project-memory install` retries
+registration; `openviking-project-memory setup` reuses the connection wizard.
+Installation tests cover configuration merging, old-path migration, failure
+recovery and npm lifecycle behavior. Plugin identifiers remain compatible;
+connection, routing and memory files are not changed by registration.
+
 Package-only adaptation: doctor marketplace identity and its reference skill text use `openviking-project`; original upstream installers remain reference files and are not the installation method for this package.
 
 Version 0.7.7-project.3 adds scripts/ov-memory.mjs, scripts/ov-memory.test.mjs, shared resolver exports, skills/ov-memory/SKILL.md and the package root command launcher. Read/write routing behavior and credentials are preserved.

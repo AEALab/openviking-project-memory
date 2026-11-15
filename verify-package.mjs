@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const EXPECTED_FILE_COUNT = 97; // Updated together with the release file manifest.
+const EXPECTED_FILE_COUNT = 101; // Updated together with the npm release file manifest.
 
 export function verifyPackage(directory) {
   const root = resolve(directory);
@@ -23,7 +23,8 @@ export function verifyPackage(directory) {
   const actual = [];
   function walk(directory, prefix = "") {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (!prefix && entry.name === ".git") continue;
+      // npm omits Git metadata, ignore files and the development dependency lock.
+      if (entry.name === ".gitignore" || (!prefix && [".git", "node_modules", "dist", "package-lock.json"].includes(entry.name))) continue;
       const path = prefix + entry.name;
       assert.ok(!entry.isSymbolicLink(), "Package symlinks are not allowed: " + path);
       if (entry.isDirectory()) walk(join(directory, entry.name), path + "/");
@@ -37,9 +38,17 @@ export function verifyPackage(directory) {
   assert.equal(catalog.name, "openviking-project");
   const manifest = readJson("codex-memory-plugin/.codex-plugin/plugin.json");
   assert.equal(manifest.name, catalog.plugins[0].name);
-  assert.equal(manifest.version, "0.7.7-project.4");
+  assert.equal(manifest.version, "0.7.7-project.5");
   assert.equal(catalog.plugins[0].source.path, "./codex-memory-plugin");
+  const npm = readJson("package.json");
+  assert.equal(npm.name, "@haowux/openviking-project-memory");
+  assert.equal(npm.engines.node, ">=22");
+  assert.equal(npm.bin["ov-memory"], "./ov-memory.mjs");
+  assert.equal(npm.bin["openviking-project-memory"], "./openviking-project-memory.mjs");
+  assert.equal(npm.scripts.postinstall, "node scripts/install.mjs --postinstall");
+  assert.equal(npm.publishConfig.access, "public");
   for (const path of ["LICENSE", "NOTICE.md", "README.md", "ov-memory.mjs",
+    "openviking-project-memory.mjs", "scripts/install.mjs", "scripts/codex-config.mjs",
     "codex-memory-plugin/scripts/ov-memory.mjs", "codex-memory-plugin/scripts/read-routing.mjs",
     "codex-memory-plugin/servers/combined-read.mjs"]) requireFile(path);
   const pluginPath = (path) => "codex-memory-plugin/" + path.replace(/^\.\//, "");

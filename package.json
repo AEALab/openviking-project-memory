@@ -1,0 +1,46 @@
+{
+  "name": "@haowux/openviking-project-memory",
+  "version": "0.1.0",
+  "description": "Community-enhanced OpenViking memory plugin for Codex",
+  "license": "Apache-2.0",
+  "author": "haowux",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AEALab/openviking-project-memory.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "openviking-project-memory": "./openviking-project-memory.mjs",
+    "ov-memory": "./ov-memory.mjs"
+  },
+  "files": [
+    ".agents/plugins/marketplace.json",
+    "codex-memory-plugin/",
+    "examples/",
+    "scripts/",
+    "ov-memory.mjs",
+    "openviking-project-memory.mjs",
+    "verify-package.mjs",
+    "verify-package.test.mjs",
+    "SHA256SUMS.json",
+    "CHANGES.md",
+    "NOTICE.md",
+    "UPSTREAM-README.md",
+    "upstream-provenance.json",
+    "*-VERIFICATION.json"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/install.mjs --postinstall",
+    "prepack": "node verify-package.mjs",
+    "test": "node --test --test-concurrency=1 scripts/*.test.mjs verify-package.test.mjs"
+  },
+  "dependencies": {
+    "smol-toml": "1.9.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": ["openviking", "codex", "memory", "plugin", "mcp"]
+}

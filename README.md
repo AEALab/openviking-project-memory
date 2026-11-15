@@ -1,6 +1,6 @@
 # OpenViking Project Memory
 
-这是基于 OpenViking Codex memory plugin 0.7.7 的社区扩展版，当前插件内部版本为 `0.7.7-project.4`。支持按工作目录选择单库或双库读取，写入仍按项目隔离。本包不是官方发布版。
+这是基于 OpenViking Codex memory plugin 0.7.7 的社区扩展版，npm 包名为 `@haowux/openviking-project-memory`，npm 版本为 `0.1.0`，插件内部版本为 `0.7.7-project.5`。支持按工作目录选择单库或双库读取，写入仍按项目隔离。本包不是官方发布版。
 
 包内提供完整插件源码、测试、安装目录描述和配置模板。没有任何使用者的真实 Key、个人路径、团队内网地址、会话记录或记忆数据。
 
@@ -10,9 +10,48 @@
 - Node.js 22 或更新版本；运行 `node --version` 和 `command -v node` 核对版本、实际路径。
 - 至少一个可访问的 OpenViking 服务和对应 Key；可以只有团队库，不要求个人库。需要双库读取时才配置两个有效来源。服务需支持本插件使用的 REST 接口、`/mcp` 和 `viking://~` 别名。
 
-没有 npm 依赖，不需要构建。本包不会安装或启动 OpenViking 服务，也不提供任何服务访问凭据。
+不需要构建。npm 安装器使用 `smol-toml` 合并 Codex 配置；插件运行时代码本身没有 npm 依赖。本包不会安装或启动 OpenViking 服务，也不提供任何服务访问凭据。
 
 本文命令面向 macOS/Linux；Windows 用户需要自行替换命令、路径和权限设置，尚未验证 Windows 安装流程。
+
+## 推荐：通过 npm 安装
+
+先确认 `codex` 命令可用，退出 Codex 桌面应用，再运行：
+
+```sh
+npm install -g @haowux/openviking-project-memory
+```
+
+全局安装时自动注册本地 marketplace、安装插件并配置独立 MCP，无需克隆仓库或执行第 1、3、4 节的手动安装步骤。首次安装在所有项目默认启用；重新安装保留用户原有的插件与独立 MCP 禁用设置。已有的原版 `openviking-memory@openviking` 条目会被禁用，避免两组 hooks 重复捕获。
+
+连接未配置时，运行以下命令填写自己的服务地址和 Key；已有有效连接可以直接复用：
+
+```sh
+openviking-project-memory setup
+```
+
+随后重启 Codex、新建聊天。查看配置仍使用 `ov-memory status`。连接与启用范围的详细规则见下文；npm 安装后要改成仅指定项目启用，可按第 3 节调整插件和独立 MCP 开关。
+
+安装器保留模型、其他 MCP、项目规则和已有可写目录，自动填写 Node 与包文件的绝对路径。修改前把原始 `config.toml` 以 `0600` 权限备份到同目录的 `config.toml.openviking-project-memory.backup-...`；TOML 会重新排版，原注释和格式保存在备份中。安装器不会修改 OpenViking 凭据或读取模式配置。通过 `CODEX_HOME` 指定 Codex 目录时，使用该目录中的 `config.toml`。
+
+若缺少兼容的 Codex CLI 或自动注册失败，npm 安装会返回错误，修复原因后重新执行全局安装命令。若 npm 禁用了安装脚本，包已安装但尚未注册，可运行：
+
+```sh
+openviking-project-memory install
+```
+
+本地 `npm install` 不会自动更改 Codex。升级使用 `npm install -g @haowux/openviking-project-memory@latest`，升级后重启 Codex。内部插件标识保留 `openviking-memory@openviking-project`，兼容已有配置；从旧源码安装迁移时自动更新 marketplace 路径。
+
+卸载前先移除插件和独立 MCP，再移除 npm 包；连接配置和记忆数据保留：
+
+```sh
+codex plugin remove openviking-memory@openviking-project
+codex mcp remove openviking-memory
+codex plugin marketplace remove openviking-project
+npm uninstall -g @haowux/openviking-project-memory
+```
+
+以下第 1～4 节保留源码安装方式，npm 用户可按需阅读连接配置部分。
 
 ## 1. 获取源码并保留固定目录
 
@@ -235,6 +274,8 @@ chmod 600 "$HOME/.openviking/ovcli.conf" "$HOME/.openviking/read-sources/team.ov
 来源与目录规则只在用户目录管理，不允许仓库自行提供新的检索地址。当前写入身份需匹配双库来源之一。团队 Key 变化时同时维护团队来源和相关项目配置。
 
 ## 7. 开发与回归验证
+
+先运行 `npm ci --ignore-scripts` 安装配置解析依赖，再运行 `npm test` 验证 npm 安装器和包结构。`npm pack` 会先校验清单与 SHA256，再生成发布压缩包。`verify-package.mjs` 对源码和解压后的 npm 包使用相同发布文件清单；Git 元数据、ignore 文件、开发依赖锁、`node_modules/` 和 `dist/` 不参与发布内容校验。
 
 核心验证使用临时目录、合成内容和模拟服务。下面的命令包含路由、状态锁、归档安全、配置快照、MCP 和诊断回归：
 

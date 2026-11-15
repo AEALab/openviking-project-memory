@@ -11,7 +11,8 @@ const packageRoot = dirname(fileURLToPath(import.meta.url));
 async function fixture(t) {
   const scratch = await mkdtemp(join(tmpdir(), "ov-package-verify-"));
   const path = join(scratch, "package");
-  await cp(packageRoot, path, { recursive: true, filter: (source) => source !== join(packageRoot, ".git") });
+  const ignored = [".git", "node_modules", "dist"].map((name) => join(packageRoot, name));
+  await cp(packageRoot, path, { recursive: true, filter: (source) => !ignored.includes(source) });
   t.after(() => rm(scratch, { recursive: true, force: true }));
   return path;
 }

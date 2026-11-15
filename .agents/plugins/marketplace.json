@@ -1,6 +1,6 @@
 {
   "name": "openviking-project",
-  "description": "OpenViking project routing community extension.",
+  "description": "OpenViking Project Memory: community-enhanced Codex memory plugin.",
   "interface": {
     "displayName": "OpenViking Project Memory"
   },
