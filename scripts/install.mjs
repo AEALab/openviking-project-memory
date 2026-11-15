@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { parse, stringify } from "smol-toml";
 import { resolveCodexLaunch } from "../codex-memory-plugin/scripts/codex-launch.mjs";
 import { mergeCodexConfig } from "./codex-config.mjs";
+import { setupAfterInstall } from "./setup-after-install.mjs";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGIN_ID = "openviking-memory@openviking-project";
@@ -125,7 +126,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (postinstall && process.env.npm_config_global !== "true") {
     console.log("OpenViking Project Memory: local install does not change Codex. Run openviking-project-memory install to register manually.");
   } else {
-    try { install(); }
+    try { install(); await setupAfterInstall(); }
     catch (error) {
       console.error("OpenViking Project Memory: " + error.message);
       if (postinstall) console.error("Automatic Codex registration failed. Fix the cause, then rerun npm install -g @haowux/openviking-project-memory.");

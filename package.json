@@ -1,6 +1,6 @@
 {
   "name": "@haowux/openviking-project-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Community-enhanced OpenViking memory plugin for Codex",
   "license": "Apache-2.0",
   "author": "haowux",

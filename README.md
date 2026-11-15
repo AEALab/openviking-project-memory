@@ -1,6 +1,6 @@
 # OpenViking Project Memory
 
-这是基于 OpenViking Codex memory plugin 0.7.7 的社区扩展版，npm 包名为 `@haowux/openviking-project-memory`，npm 版本为 `0.1.0`，插件内部版本为 `0.7.7-project.5`。支持按工作目录选择单库或双库读取，写入仍按项目隔离。本包不是官方发布版。
+这是基于 OpenViking Codex memory plugin 0.7.7 的社区扩展版，npm 包名为 `@haowux/openviking-project-memory`，npm 版本为 `0.1.1`，插件内部版本为 `0.7.7-project.6`。支持按工作目录选择单库或双库读取，写入仍按项目隔离。本包不是官方发布版。
 
 包内提供完整插件源码、测试、安装目录描述和配置模板。没有任何使用者的真实 Key、个人路径、团队内网地址、会话记录或记忆数据。
 
@@ -24,7 +24,9 @@ npm install -g @haowux/openviking-project-memory
 
 全局安装时自动注册本地 marketplace、安装插件并配置独立 MCP，无需克隆仓库或执行第 1、3、4 节的手动安装步骤。首次安装在所有项目默认启用；重新安装保留用户原有的插件与独立 MCP 禁用设置。已有的原版 `openviking-memory@openviking` 条目会被禁用，避免两组 hooks 重复捕获。
 
-连接未配置时，运行以下命令填写自己的服务地址和 Key；已有有效连接可以直接复用：
+首次在 macOS/Linux 的交互终端全局安装时，安装完成后会直接进入连接向导，填写服务地址和 Key，最后确认是否保存。向导直接使用控制终端，即使 npm 隐藏安装脚本输出，也能看到并回答问题。
+
+已有连接文件或环境变量配置时，会提示保留配置，不重复询问。安装时不验证服务连通性，也不覆盖已有或损坏的配置文件；需要检查或修改时运行：
 
 ```sh
 openviking-project-memory setup
@@ -32,7 +34,9 @@ openviking-project-memory setup
 
 随后重启 Codex、新建聊天。查看配置仍使用 `ov-memory status`。连接与启用范围的详细规则见下文；npm 安装后要改成仅指定项目启用，可按第 3 节调整插件和独立 MCP 开关。
 
-安装器保留模型、其他 MCP、项目规则和已有可写目录，自动填写 Node 与包文件的绝对路径。修改前把原始 `config.toml` 以 `0600` 权限备份到同目录的 `config.toml.openviking-project-memory.backup-...`；TOML 会重新排版，原注释和格式保存在备份中。安装器不会修改 OpenViking 凭据或读取模式配置。通过 `CODEX_HOME` 指定 Codex 目录时，使用该目录中的 `config.toml`。
+安装器保留模型、其他 MCP、项目规则和已有可写目录，自动填写 Node 与包文件的绝对路径。修改前把原始 `config.toml` 以 `0600` 权限备份到同目录的 `config.toml.openviking-project-memory.backup-...`；TOML 会重新排版，原注释和格式保存在备份中。连接向导仅在确认保存后写入连接文件；注册插件本身不会修改凭据或读取模式。通过 `CODEX_HOME` 指定 Codex 目录时，使用该目录中的 `config.toml`。
+
+在 CI 或没有控制终端的环境中自动跳过向导，不等待输入。未保存连接时，稍后运行 `openviking-project-memory setup`；配置取消或失败不会撤销已经完成的插件注册。Windows 的后台安装暂不自动打开向导，可安装后手动执行该命令。
 
 若缺少兼容的 Codex CLI 或自动注册失败，npm 安装会返回错误，修复原因后重新执行全局安装命令。若 npm 禁用了安装脚本，包已安装但尚未注册，可运行：
 
@@ -305,3 +309,11 @@ node --test --test-concurrency=1 codex-memory-plugin/scripts/read-routing.test.m
 等价 URL 写法会归一比较。旧版本会话应先使用原连接配置运行一次，再调整 URL 写法；无法验证的旧身份记录会保留并拒绝恢复，不会自动清零进度。
 
 分发保留完整源码、上游归属与修改说明。上游 examples 目录的 Apache-2.0 许可及归属说明见 `LICENSE` 和 `NOTICE.md`，历史来源核对记录见 `upstream-provenance.json`。
+
+## 8. 发布版本与源码对应
+
+GitHub 仓库中的已提交源码是 npm 发布的基础。每个 npm 版本对应同名 Git 标签，例如 `0.1.0` 对应 `v0.1.0`；标签定位到唯一 Git 提交，便于检查和恢复该版本代码。
+
+对外版本以 `package.json` 为准，并同步更新 `package-lock.json`。插件内部版本用于 Codex 缓存识别，插件文件发生变化时也要递增；上游基线保留在 `upstream-provenance.json`，不随 npm 版本改写。
+
+发布顺序：修改代码和版本 → 更新完整 SHA256 清单 → 测试与实际安装验证 → 提交代码并创建版本标签 → 推送 GitHub → 从该标签对应的干净工作区发布 npm。`npm publish` 会先执行包校验，不能从尚未提交的临时改动发布。

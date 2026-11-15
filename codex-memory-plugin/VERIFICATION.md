@@ -1,4 +1,4 @@
-# Verification — OpenViking Project Memory 0.7.7-project.5
+# Verification — OpenViking Project Memory 0.7.7-project.6
 
 本指南适用于当前社区扩展包。安装入口、连接配置和数据边界以
 [包根 README](../README.md) 为准。上游历史说明见

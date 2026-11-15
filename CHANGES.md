@@ -38,6 +38,13 @@ Installation tests cover configuration merging, old-path migration, failure
 recovery and npm lifecycle behavior. Plugin identifiers remain compatible;
 connection, routing and memory files are not changed by registration.
 
+npm 0.1.1 / plugin 0.7.7-project.6: global installation and manual registration
+offer connection setup through the controlling terminal, so npm's captured
+lifecycle output no longer hides the first-run wizard. Existing connection
+files and environment credentials are preserved. CI and installations without
+an interactive terminal skip questions; cancelled or failed connection setup
+can be retried with the existing setup command. No dependency is added.
+
 Package-only adaptation: doctor marketplace identity and its reference skill text use `openviking-project`; original upstream installers remain reference files and are not the installation method for this package.
 
 Version 0.7.7-project.3 adds scripts/ov-memory.mjs, scripts/ov-memory.test.mjs, shared resolver exports, skills/ov-memory/SKILL.md and the package root command launcher. Read/write routing behavior and credentials are preserved.

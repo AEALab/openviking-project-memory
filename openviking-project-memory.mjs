@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { install } from "./scripts/install.mjs";
+import { setupAfterInstall } from "./scripts/setup-after-install.mjs";
 
 const args = process.argv.slice(2);
 try {
-  if (args.length === 1 && args[0] === "install") install();
+  if (args.length === 1 && args[0] === "install") { install(); await setupAfterInstall(); }
   else if (args.length === 1 && args[0] === "setup") {
     const { runSetupWizard } = await import("./codex-memory-plugin/scripts/shared/setup-wizard.mjs");
     await runSetupWizard();
