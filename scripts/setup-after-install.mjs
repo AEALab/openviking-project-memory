@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { ReadStream, WriteStream } from "node:tty";
 import { loadCredentialFiles, resolveOpenVikingCredentials } from "../codex-memory-plugin/scripts/shared/credentials.mjs";
-import { runSetupWizard } from "../codex-memory-plugin/scripts/shared/setup-wizard.mjs";
+import { runSetupWizard } from "./setup-wizard.mjs";
 
 const SETUP_COMMAND = "openviking-project-memory setup";
 
@@ -53,23 +53,25 @@ export async function setupAfterInstall({
   const terminal = openTerminal({ env });
   const say = (message) => (terminal?.output || output).write(message + "\n");
   try {
-    say("OpenViking Project Memory: plugin and MCP registration completed.");
+    say("OpenViking Project Memory：插件和独立 MCP 已完成注册。");
     if (hasConnectionConfig(env)) {
-      say("Existing OpenViking configuration preserved. To review it, run " + SETUP_COMMAND + ".");
-      say("Restart Codex and open a new chat to apply.");
+      say("已有连接配置已保留，安装过程不会自动修改全局默认或项目规则。");
+      say("需要设置全局默认、项目选库或读取方式时，请运行：" + SETUP_COMMAND);
+      say("配置完成后，请重启 Codex 并新建聊天。");
       return;
     }
     if (!terminal) {
-      say("No interactive terminal or running in CI. Configure your server later with: " + SETUP_COMMAND);
+      say("当前没有交互终端或正在 CI 中运行，已跳过配置向导。");
+      say("新安装的插件和独立 MCP 默认保持关闭；稍后请运行：" + SETUP_COMMAND);
       return;
     }
-    say("No OpenViking connection found. Starting setup; you can decline saving at the end.");
+    say("尚未发现 OpenViking 连接，即将进入配置向导；最后确认保存前不会写入配置。");
     const result = await wizard({ env, input: terminal.input, output: terminal.output });
     say(result.written
-      ? "Connection saved. Restart Codex and open a new chat to apply."
-      : "Connection not saved. Before using memory, run " + SETUP_COMMAND + ".");
+      ? "配置已保存。请重启 Codex 并新建聊天，使配置生效。"
+      : "本次配置未保存。已完成的注册会保留；新安装的插件和独立 MCP 默认保持关闭。稍后请运行：" + SETUP_COMMAND);
   } catch {
     // Keep registration usable and avoid logging configuration values from setup errors.
-    say("Connection setup did not finish. Retry with: " + SETUP_COMMAND);
+    say("配置向导未完成，本次配置未保存。已完成的注册会保留；新安装的插件和独立 MCP 默认保持关闭。请重试：" + SETUP_COMMAND);
   } finally { terminal?.close(); }
 }

@@ -11,18 +11,18 @@ const options = {
   stateHome: "/users/A Hao/.openviking",
 };
 
-test("first installation enables hooks and independent MCP with paths containing spaces", () => {
+test("first installation registers hooks and keeps memory disabled until setup confirms a scope", () => {
   assert.deepEqual(mergeCodexConfig({}, options), {
     features: { hooks: true, plugin_hooks: true },
     plugins: {
       [PLUGIN_ID]: {
-        enabled: true,
+        enabled: false,
         mcp_servers: { "openviking-memory": { enabled: false } },
       },
     },
     mcp_servers: {
       "openviking-memory": {
-        enabled: true,
+        enabled: false,
         command: options.nodePath,
         args: [join(options.packageRoot, "codex-memory-plugin/servers/mcp-proxy.mjs")],
         startup_timeout_sec: 30,
@@ -70,7 +70,7 @@ test("preserves unknown user fields, timeout and roots while disabling duplicate
       ...config.plugins,
       [ORIGINAL_PLUGIN_ID]: { enabled: false, custom: "original" },
       [PLUGIN_ID]: {
-        custom: "project", enabled: true,
+        custom: "project", enabled: false,
         mcp_servers: {
           other: { enabled: true },
           "openviking-memory": { enabled: false, custom: "bundled" },
@@ -80,7 +80,7 @@ test("preserves unknown user fields, timeout and roots while disabling duplicate
     mcp_servers: {
       other: { command: "other" },
       "openviking-memory": {
-        enabled: true, command: options.nodePath,
+        enabled: false, command: options.nodePath,
         args: [join(options.packageRoot, "codex-memory-plugin/servers/mcp-proxy.mjs")],
         startup_timeout_sec: 75, env: { CUSTOM: "retained" }, custom: "server",
       },
@@ -108,7 +108,7 @@ test("converts HTTP MCP to stdio while preserving environment and unknown fields
   const snapshot = structuredClone(config);
   const server = mergeCodexConfig(config, options).mcp_servers["openviking-memory"];
   assert.deepEqual(server, {
-    enabled: true,
+    enabled: false,
     command: options.nodePath,
     args: [join(options.packageRoot, "codex-memory-plugin/servers/mcp-proxy.mjs")],
     startup_timeout_sec: 30,
@@ -139,7 +139,7 @@ for (const pluginEnabled of [true, false]) {
 
 test("independent MCP explicit false survives without an existing plugin setting", () => {
   const result = mergeCodexConfig({ mcp_servers: { "openviking-memory": { enabled: false } } }, options);
-  assert.equal(result.plugins[PLUGIN_ID].enabled, true);
+  assert.equal(result.plugins[PLUGIN_ID].enabled, false);
   assert.equal(result.mcp_servers["openviking-memory"].enabled, false);
 });
 

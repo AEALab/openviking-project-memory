@@ -46,8 +46,10 @@ test("first interactive installation passes its streams and environment to setup
   });
   assert.equal(calls, 1);
   assert.equal(terminal.closed, 1);
-  assert.match(terminal.output.text, /Connection saved/);
-  assert.match(terminal.output.text, /Restart Codex/);
+  assert.match(terminal.output.text, /插件和独立 MCP 已完成注册/);
+  assert.match(terminal.output.text, /即将进入配置向导/);
+  assert.match(terminal.output.text, /配置已保存/);
+  assert.match(terminal.output.text, /重启 Codex 并新建聊天/);
   assert.deepEqual(snapshot(), []);
 });
 
@@ -57,7 +59,9 @@ test("declining setup leaves a manual setup reminder and closes the terminal", a
   await setupAfterInstall({
     env, openTerminal: () => terminal, wizard: async () => ({ written: false }),
   });
-  assert.match(terminal.output.text, /Connection not saved/);
+  assert.match(terminal.output.text, /本次配置未保存/);
+  assert.match(terminal.output.text, /已完成的注册会保留/);
+  assert.match(terminal.output.text, /新安装的插件和独立 MCP 默认保持关闭/);
   assert.match(terminal.output.text, /openviking-project-memory setup/);
   assert.equal(terminal.closed, 1);
   assert.deepEqual(snapshot(), []);
@@ -88,7 +92,9 @@ for (const connection of existingConnections) {
     });
     assert.equal(calls, 0);
     assert.equal(terminal.closed, 1);
-    assert.match(terminal.output.text, /configuration preserved/);
+    assert.match(terminal.output.text, /已有连接配置已保留/);
+    assert.match(terminal.output.text, /不会自动修改全局默认或项目规则/);
+    assert.match(terminal.output.text, /openviking-project-memory setup/);
     assert.deepEqual(snapshot(), before);
   });
 }
@@ -131,6 +137,8 @@ for (const ci of [undefined, "true"]) {
       wizard: async () => { calls++; return { written: true }; },
     });
     assert.equal(calls, 0);
+    assert.match(output.text, /已跳过配置向导/);
+    assert.match(output.text, /新安装的插件和独立 MCP 默认保持关闭/);
     assert.match(output.text, /openviking-project-memory setup/);
     assert.deepEqual(snapshot(), []);
   });
@@ -146,6 +154,9 @@ test("setup failures do not expose exception secrets and always close the termin
     wizard: async () => { throw new Error(`Authentication failed for ${secret}`); },
   });
   assert.equal(terminal.closed, 1);
+  assert.match(terminal.output.text, /配置向导未完成，本次配置未保存/);
+  assert.match(terminal.output.text, /已完成的注册会保留/);
+  assert.match(terminal.output.text, /新安装的插件和独立 MCP 默认保持关闭/);
   assert.match(terminal.output.text, /openviking-project-memory setup/);
   assert.equal(terminal.output.text.includes(secret), false);
   assert.equal(terminal.output.text.includes("Authentication failed"), false);

@@ -57,7 +57,7 @@ export function mergeCodexConfig(config, { packageRoot, nodePath, stateHome, pre
   }
   const current = inspectConfig(config, "config");
   const previous = previousConfig === config ? current : inspectConfig(previousConfig, "previousConfig");
-  const pluginEnabled = previous.plugin.enabled ?? true;
+  const pluginEnabled = previous.plugin.enabled ?? false;
   const server = {
     ...current.server,
     enabled: previous.server.enabled ?? pluginEnabled,

@@ -11,11 +11,12 @@ import { fileURLToPath } from "node:url";
 
 const ENTRY = fileURLToPath(new URL("./mcp-proxy.mjs", import.meta.url));
 
-async function fixture(t, { globalConnection = false } = {}) {
+async function fixture(t, { globalConnection = false, sharedConnection = false, readMode = "separate" } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "ov-mcp-config-")));
   const home = join(root, "home");
   const project = join(home, "project");
-  const configPath = join(globalConnection ? home : project, ".openviking", "ovcli.conf");
+  const configPath = join(globalConnection || sharedConnection ? home : project, ".openviking",
+    sharedConnection ? "shared-team.conf" : "ovcli.conf");
   const registryPath = join(home, ".openviking", "project-configs.json");
   const routingPath = join(home, ".openviking", "read-routing.json");
   const calls = [];
@@ -40,7 +41,14 @@ async function fixture(t, { globalConnection = false } = {}) {
     await mkdir(dir, { recursive: true });
   }
   await writeFile(configPath, JSON.stringify(config));
-  await writeFile(registryPath, JSON.stringify(globalConnection ? {} : { [configPath]: url }));
+  await writeFile(registryPath, JSON.stringify(globalConnection || sharedConnection ? {} : { [configPath]: url }));
+  const routing = { mode: readMode, writeDirectories: { [project]: "team" },
+    sources: { local: join(home, ".openviking", "ovcli.conf"), team: configPath }, sourceUrls: { team: url } };
+  if (sharedConnection) {
+    // The same default identity proves revoked routes cannot silently fall back.
+    await writeFile(routing.sources.local, JSON.stringify(config));
+    await writeFile(routingPath, JSON.stringify(routing));
+  }
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("OPENVIKING_")));
   const child = spawn(process.execPath, [ENTRY], { cwd: project, env: { ...env, HOME: home, USERPROFILE: home } });
   const exited = once(child, "close");
@@ -77,7 +85,7 @@ async function fixture(t, { globalConnection = false } = {}) {
   }
   assert.equal((await rpc("initialize", { protocolVersion: "2025-06-18" })).error, undefined);
   assert.equal((await rpc("tools/call", { name: "write", arguments: { value: "permitted" } })).error, undefined);
-  return { config, configPath, registryPath, routingPath, project, calls, rpc };
+  return { config, configPath, registryPath, routingPath, routing, project, calls, rpc };
 }
 
 test("MCP accepts an unchanged connection when an unused server config appears", async (t) => {
@@ -142,4 +150,38 @@ for (const [name, mutate, expected] of changes) {
     }
     assert.equal(f.calls.length, before);
   });
+}
+
+const sharedChanges = [
+  ["mapping is revoked", (f) => writeFile(f.routingPath, JSON.stringify({ ...f.routing, writeDirectories: {} }))],
+  ["mapping switches to the identical default", (f) => writeFile(f.routingPath, JSON.stringify({
+    ...f.routing, writeDirectories: { [f.project]: "default" },
+  }))],
+  ["source path switches to an identical file", (f) => writeFile(f.routingPath, JSON.stringify({
+    ...f.routing, sources: { ...f.routing.sources, team: f.routing.sources.local },
+  }))],
+  ["URL approval is revoked", (f) => writeFile(f.routingPath, JSON.stringify({ ...f.routing, sourceUrls: {} }))],
+  ["source URL changes without approval", (f) => writeFile(f.configPath, JSON.stringify({ ...f.config, url: f.config.url + "/other" }))],
+  ["source disappears", (f) => rm(f.configPath)],
+  ["routing disappears", (f) => rm(f.routingPath)],
+];
+
+for (const readMode of ["separate", "combined"]) {
+  for (const [name, mutate] of sharedChanges) {
+    test(`${readMode} MCP blocks HTTP when shared ${name}`, { timeout: 10000 }, async (t) => {
+      const f = await fixture(t, { sharedConnection: true, readMode });
+      await mutate(f);
+      const before = f.calls.length;
+      for (const [method, params] of [
+        ["tools/call", { name: "write", arguments: { value: "must not send" } }], ["tools/list", {}],
+        ["resources/read", { uri: "viking://~/private" }], ["prompts/get", { name: "private-prompt" }],
+        ["ping", {}],
+      ]) {
+        const response = await f.rpc(method, params);
+        assert.ok(response.error, JSON.stringify(response));
+        assert.match(JSON.stringify(response.error), /Invalid shared OpenViking connection/);
+      }
+      assert.equal(f.calls.length, before);
+    });
+  }
 }

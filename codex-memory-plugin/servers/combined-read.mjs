@@ -1,4 +1,5 @@
 // Community modification (2026-11-05): project routing and configurable multi-library reads.
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createOpenVikingMcpProxy } from "../scripts/shared/mcp-proxy-core.mjs";
 import { buildMcpProxyConfig, resolveMcpActorPeerId } from "../scripts/shared/mcp-proxy-config.mjs";
 import { formatReadSource, normalizeConnectionUrl, readIdentity } from "../scripts/read-routing.mjs";
@@ -17,13 +18,19 @@ function sourceProxyConfig(source) {
 }
 
 // Reuse the existing HTTP transport, protocol negotiation and session recovery.
-function sourceClient(source, fetchImpl) {
+function sourceClient(source, fetchImpl, validateConfig) {
   let sequence = 0;
   let ready;
+  const discovery = new AsyncLocalStorage();
   const responses = new Map();
   const proxy = createOpenVikingMcpProxy({
     readConfig: () => sourceProxyConfig(source), loggerFactory: silentLogger,
-    fetchImpl,
+    fetchImpl: (url, init) => {
+      const discoverySignal = discovery.getStore();
+      const signal = discoverySignal ? AbortSignal.any([init.signal, discoverySignal]) : init.signal;
+      signal.throwIfAborted();
+      return fetchImpl(url, { ...init, signal });
+    }, validateConfig,
     stdout: { write(line, callback) {
       const response = JSON.parse(line);
       responses.set(response.id, response);
@@ -48,7 +55,13 @@ function sourceClient(source, fetchImpl) {
     return ready;
   }
   return {
-    async tools() { await initialize(); return (await rpc("tools/list")).tools || []; },
+    async tools() {
+      // Bound the whole discovery sequence so one stalled source cannot exhaust MCP startup time.
+      return discovery.run(AbortSignal.timeout(5000), async () => {
+        await initialize();
+        return (await rpc("tools/list")).tools || [];
+      });
+    },
     async call(name, args) { await initialize(); return rpc("tools/call", { name, arguments: args }); },
     close: () => proxy.closeSession(),
   };
@@ -73,7 +86,7 @@ export async function createCombinedReadProxy({
   const primary = plan.sources.find((s) => s.primary);
   if (!primary) throw new Error("Combined reads require a primary write connection");
   const identity = planIdentity(plan);
-  const clients = new Map(plan.sources.map((s) => [s, sourceClient(s, fetchImpl)]));
+  const clients = new Map(plan.sources.map((s) => [s, sourceClient(s, fetchImpl, assertConnections)]));
   const inventories = new Map();
   const unavailable = new Set(plan.sources);
   let inventoryRefresh;
@@ -140,6 +153,7 @@ export async function createCombinedReadProxy({
       if (selector === "all" && [input.uri, input.target_uri, ...(Array.isArray(input.uris) ? input.uris : [])]
         .some((uri) => typeof uri === "string" && /^viking:\/\/[^\s"]*\/sessions\//.test(uri))) selected = [primary];
       const results = await Promise.all(selected.map(async (source) => {
+        if (unavailable.has(source)) return { source: source.name, ok: false };
         const sourceInput = { ...input };
         if (!source.primary) {
           for (const key of ["session_id", "peer_id", "actor_peer_id", "account", "account_id", "user", "user_id"]) delete sourceInput[key];

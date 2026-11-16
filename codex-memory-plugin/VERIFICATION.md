@@ -1,8 +1,10 @@
-# Verification — OpenViking Project Memory 0.7.7-project.6
+# Verification — OpenViking Project Memory 0.7.7-project.9
 
 本指南适用于当前社区扩展包。安装入口、连接配置和数据边界以
 [包根 README](../README.md) 为准。上游历史说明见
 [UPSTREAM-README.md](../UPSTREAM-README.md)，其中的联网安装步骤不用于本扩展。
+
+本指南对应 npm 0.2.1 / 插件 0.7.7-project.9，列出完整性、隔离测试与真实环境验证方法；指南本身不是测试通过记录。
 
 ## 1. 文件完整性
 
@@ -18,13 +20,17 @@ node verify-package.mjs
 
 ## 2. 隔离功能验证
 
+先运行 `npm ci --ignore-scripts`，再运行 `npm test`。向导回归应覆盖：入口重新配置或仅改项目规则（保留默认读取，可改默认启用范围）、个人／团队单库的两种启用范围、双库三种默认方案、仅指定范围至少明确开启一个项目、逐个项目选库或关闭、读取范围独立选择、目录继承、保留／清除已有规则、取消、锁、并发修改、失败回滚和隐藏 Key 历史回放。
+共享选库还需验证用户级 `writeDirectories`／`sourceUrls`，项目不复制 Key 或新增登记；高级自定义连接需验证批准登记、Git 忽略与异常阻断。安装回归应验证新注册默认关闭、重装保留开关，以及已有连接保留、CI／无终端不提问和中文提示不泄露秘密。
+向导验证使用临时用户目录，不更改真实 Codex 配置。
+
 仍在包根目录执行：
 
 ```sh
 node --test --test-concurrency=1 codex-memory-plugin/scripts/read-routing.test.mjs codex-memory-plugin/scripts/combined-read-hooks.test.mjs codex-memory-plugin/scripts/combined-capture.test.mjs codex-memory-plugin/servers/combined-read.test.mjs codex-memory-plugin/scripts/ov-memory.test.mjs codex-memory-plugin/scripts/project-config.test.mjs codex-memory-plugin/scripts/project-routing.integration.test.mjs codex-memory-plugin/scripts/session-state.test.mjs codex-memory-plugin/scripts/capture-safety.test.mjs codex-memory-plugin/scripts/credentials-snapshot.test.mjs codex-memory-plugin/scripts/doctor.test.mjs codex-memory-plugin/servers/mcp-config-regression.test.mjs codex-memory-plugin/scripts/hook-paths.test.mjs verify-package.test.mjs
 ```
 
-上述命令与包根 README 第 6 节一致，覆盖基础功能、新增安全回归和包完整性检查：
+上述命令与包根 README 第 7 节一致，覆盖基础功能、新增安全回归和包完整性检查：
 
 - 项目连接选择、子目录继承、异常配置阻断和连接状态隔离。
 - 单库／双库自动检索、来源标记、来源离线与超时。
@@ -64,7 +70,10 @@ CLI-VERIFICATION.json 等是打包时的验证记录，不是执行过本指南�
 5. 核对同一会话切换写入连接后会被阻断，不能把旧聊天重传到另一个库。
    模式、路径或 Key 变化后重启并新建会话。
 6. 仅指定项目启用方案，还需检查普通目录中的插件和独立 MCP 均关闭，
-   指定项目中两者均开启。
+   指定项目中两者均开启。已有项目显式开关不因全局关闭自动撤销。
+7. 检查新安装在向导保存前插件和独立 MCP 均关闭，取消后仍关闭；重装保留原有开关。
+   双库配置默认仅读当前库；分别为项目选择已保存的个人／团队库，核对写入目标，
+   确认项目中没有新增 Key 副本或批准登记。仅改项目规则时不重复填写连接。
 
 默认状态文件位于
 `~/.openviking/codex-plugin-state/<connection-scope>/<safe-session-id>.json`；

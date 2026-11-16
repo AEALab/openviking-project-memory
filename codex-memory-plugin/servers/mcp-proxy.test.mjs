@@ -474,3 +474,28 @@ test("validates each remote or local tool request once before dispatch", async (
     assert.ok((await messages()).slice(-3).every((message) => message.error));
   });
 });
+
+test("revocation during a failed request blocks reinitialization, retry and session cleanup", async () => {
+  let allowed = true;
+  await withServer((_req, res, entry) => {
+    if (entry.body?.method === "tools/call") {
+      allowed = false;
+      res.writeHead(404); res.end("session expired");
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json", "Mcp-Session-Id": "approved-session" });
+    res.end(JSON.stringify(jsonRpc(entry.body.id, { protocolVersion: "2025-06-18" })));
+  }, async ({ url, requests }) => {
+    const { proxy, messages } = makeProxy({ url, validateConfig() {
+      if (!allowed) throw new Error("Invalid shared OpenViking connection: approval revoked");
+    } });
+    await proxy.handleMessage({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+    const before = requests.length;
+    await proxy.handleMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "write" } });
+    await proxy.closeSession();
+    assert.equal(requests.length, before + 1, "only the request sent before revocation may reach the server");
+    assert.equal(requests.filter((request) => request.body?.method === "initialize").length, 1);
+    assert.equal(requests.some((request) => request.method === "DELETE"), false);
+    assert.match(JSON.stringify((await messages()).at(-1).error), /approval revoked/);
+  });
+});

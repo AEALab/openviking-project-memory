@@ -26,6 +26,55 @@ Modified/added runtime and test files:
 
 Package metadata and installation documentation are community-specific. Upstream notices are retained; see NOTICE.md.
 
+npm 0.2.1 / plugin 0.7.7-project.9 (2026-11-16):
+`openviking-project-memory setup` offers reconfigure libraries and defaults,
+adjust project rules without re-entering connections or changing the default
+read mode, preserve and exit, or cancel. The project-only entry can still
+change global activation. Personal-only and team-only setups support all projects or selected
+projects. Dual-library setups choose a personal default, a team default, or
+default-off with explicit projects. Library roles describe usage rather than
+deployment location; team-only setup requires no personal library. Keys are
+hidden on input. Configuring two libraries does not enable combined reads:
+read scope is chosen separately and defaults to the current write library.
+Full setup with default-off requires at least one explicitly enabled project.
+
+Multiple project paths can select a saved personal/team library, follow the
+default, use a custom connection, disable memory, or preserve existing rules.
+Shared selections use user-level read-routing.json writeDirectories roles and
+sourceUrls approvals, without project Key copies or new registry entries.
+Custom connections retain project ovcli.conf and registry approval, Git ignore
+checks and local info/exclude updates; tracked credentials are refused and
+invalid connections fail closed. Returning to a shared library backs up and
+removes the project connection and its approval. Directory inheritance uses
+the nearest parent rule; existing user-level rules can be preserved or cleared.
+Unlisted projects keep their own explicit switches and independent connections.
+
+Setup shows the complete plan before a final save confirmation, writes private
+0600 configuration files and backups (centralized under user setup-backups
+with an original-path manifest), and rolls back written files on failure
+(reporting any incomplete restoration). Installation still preserves existing
+connection files or environment configuration and points to setup for changes;
+first interactive installation without a connection opens the complete wizard.
+New registrations leave the plugin and independent MCP disabled until setup
+confirms activation; reinstallations retain existing switches. CI and missing
+terminals skip questions. Chinese postinstall messages explain registration,
+preserved connections, manual setup, cancellation and restart requirements;
+setup errors do not print exception secrets. Connection formats and routing
+are validated without network or Key-permission probes, and environment
+connection/identity overrides must be removed before changes. Manual
+configuration examples remain reference material; real memory-service validation
+is separate from the isolated regression suite.
+
+Wizard wording consistently distinguishes global defaults from project settings,
+and explicitly labels separate and combined reads. Combined MCP discovery gives
+each source a shared five-second deadline across initialization and tool listing;
+a stalled source cannot block the healthy source at startup or on tools/list.
+Reads skip sources still awaiting successful discovery, preserve healthy source
+results, and report a tool error only when all selected sources fail. Failed
+discovery is retried by tools/list; writes remain pinned to the primary source.
+Regression coverage includes either source offline or stalled, multi-stage
+discovery timeouts, both sources offline, recovery, and automatic recall.
+
 npm distribution (0.1.0 / plugin 0.7.7-project.5): publish as
 `@haowux/openviking-project-memory`; global installation registers the local
 marketplace and plugin, configures independent stdio MCP with absolute paths,

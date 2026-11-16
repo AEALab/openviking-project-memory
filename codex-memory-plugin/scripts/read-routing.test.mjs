@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, realpathSync, symlinkSync, writeFileSync, rmSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadReadRouting, requestReadJSON, formatReadSource, readIdentity } from "./read-routing.mjs";
+import { loadReadRouting, requestReadJSON, formatReadSource, readIdentity, resolveWriteSource } from "./read-routing.mjs";
+import { updateRouting } from "./ov-memory.mjs";
 
 function fixture(t) {
   const home = mkdtempSync(join(tmpdir(), "ov-read-routing-"));
@@ -196,4 +197,33 @@ test("primary keeps its explicit MCP endpoint and secondary retains common actor
   assert.equal(plan.sources[1].config.peerId, "team-own-peer");
   f.write(f.team, { url: "https://team.example", api_key: "team-key", plugin: { recallPeerScope: "actor" } });
   assert.throws(() => loadReadRouting(f.current), /requires its own peer/);
+});
+
+test("write mappings inherit the closest canonical directory and default blocks its parent", (t) => {
+  const f = fixture(t), project = join(f.home, "project"), nested = join(project, "nested");
+  mkdirSync(nested, { recursive: true });
+  const alias = join(f.home, "alias");
+  symlinkSync(project, alias, "dir");
+  const routing = { mode: "separate", writeDirectories: { "~/project": "team", [nested]: "default" } };
+  assert.deepEqual(resolveWriteSource(routing, join(alias, "src")), { source: "team", matchedDirectory: "~/project" });
+  assert.deepEqual(resolveWriteSource(routing, join(nested, "src")), { source: "default", matchedDirectory: nested });
+  assert.deepEqual(resolveWriteSource(routing, project + "-other"), { source: null, matchedDirectory: null });
+  assert.deepEqual(resolveWriteSource({ mode: "separate" }, project), { source: null, matchedDirectory: null });
+  for (const writeDirectories of [null, [], "team", { relative: "local" }, { [project]: "inherit" }]) {
+    assert.throws(() => resolveWriteSource({ writeDirectories }, project), /Invalid.*routing director/);
+  }
+});
+
+test("write mapping updates remove canonical aliases and preserve read routing and credentials", (t) => {
+  const f = fixture(t), project = realpathSync(f.home), child = join(project, "child");
+  const routing = { mode: "combined", sources: { local: f.local, team: f.team },
+    sourceUrls: { local: "https://local.example", team: "https://team.example" }, directories: { [project]: "separate" },
+    writeDirectories: { "~/": "team", [project]: "local", [child]: "default" } };
+  const inherited = updateRouting(routing, { write: true, mode: "inherit" }, project);
+  assert.deepEqual(inherited, { ...routing, writeDirectories: { [child]: "default" } });
+  assert.deepEqual(updateRouting(inherited, { write: true, mode: "team" }, project),
+    { ...routing, writeDirectories: { [child]: "default", [project]: "team" } });
+  assert.equal(updateRouting({ mode: "separate" }, { write: true, mode: "inherit" }, project).writeDirectories, undefined);
+  assert.throws(() => updateRouting(routing, { write: true, mode: "global" }, project), /Invalid.*write routing/);
+  assert.throws(() => updateRouting(routing, { write: true, mode: "team", global: true }, project), /Invalid.*write routing/);
 });

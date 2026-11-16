@@ -1,6 +1,7 @@
 // Community modification (2026-11-05): project routing and configurable multi-library reads.
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
+import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import { createCombinedReadProxy } from "./combined-read.mjs";
 
@@ -9,7 +10,7 @@ const READS = ["read", "find", "search", "list", "tree", "grep", "glob", "health
 const WRITES = ["write", "remember", "forget", "set_acl", "admin_future_mutator"];
 
 async function fixture(t, { primary = "local", offline = [], results = {}, endpoints = {}, sourceSchemas = {},
-  peerIds = { local: "local-peer", team: "team-peer" } } = {}) {
+  peerIds = { local: "local-peer", team: "team-peer" }, startupStalled = [], discoveryDelays = {}, timeoutMs = 1000 } = {}) {
   const calls = [];
   const stalled = new Set();
   const unavailable = new Set(offline);
@@ -21,7 +22,7 @@ async function fixture(t, { primary = "local", offline = [], results = {}, endpo
         baseUrl: `https://${name}.example.test`, mcpUrl: endpoints[name] || `https://${name}.example.test/mcp`,
         apiKey: `synthetic-${name}-key`, account: `${name}-account`, user: `${name}-user`,
         peerId: peerIds[name], authMode: "trusted", sendIdentityHeaders: true,
-        recallPeerScope: peerIds[name] ? "actor" : "all", timeoutMs: 1000,
+        recallPeerScope: peerIds[name] ? "actor" : "all", timeoutMs,
       },
     })),
   };
@@ -36,6 +37,14 @@ async function fixture(t, { primary = "local", offline = [], results = {}, endpo
     assert.equal(url, endpoints[name] || `https://${name}.example.test/mcp`);
     assert.equal(headers.get("authorization"), `Bearer synthetic-${name}-key`);
     if (unavailable.has(name)) throw new Error("synthetic source offline");
+    if (startupStalled.includes(name) && body?.method === "initialize") {
+      return new Promise((_resolve, reject) => {
+        init.signal.throwIfAborted();
+        init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
+      });
+    }
+    const wait = discoveryDelays[name]?.[body?.method];
+    if (wait) await delay(wait, undefined, { signal: init.signal });
     if (init.method === "DELETE") return new Response(null, { status: 204 });
     if (body.method === "notifications/initialized") return new Response(null, { status: 202 });
     let result;
@@ -87,8 +96,9 @@ async function fixture(t, { primary = "local", offline = [], results = {}, endpo
   }
   const initialized = await rpc("initialize", { protocolVersion: "2025-06-18" });
   assert.equal(initialized.result.serverInfo.name, "openviking-combined-reader");
+  const startupCalls = calls.slice();
   calls.length = 0;
-  return { plan, proxy, rpc, call, calls, stalled, unavailable, setPlan(value) { nextPlan = value; } };
+  return { startupCalls, plan, proxy, rpc, call, calls, stalled, unavailable, setPlan(value) { nextPlan = value; } };
 }
 
 function assertSourceIdentities(calls) {
@@ -271,6 +281,45 @@ for (const offline of ["local", "team"]) {
     assert.ok(h.calls.some((call) => call.name === reachable && call.body?.method === "tools/call"));
   });
 }
+
+for (const slow of ["local", "team"]) {
+  test(`a stalled ${slow} cannot block startup or tool discovery for the healthy library`, { timeout: 13000 }, async (t) => {
+    const h = await fixture(t, { primary: slow, startupStalled: [slow], timeoutMs: 60000 });
+    const healthy = slow === "local" ? "team" : "local";
+    assert.equal(h.startupCalls.find((call) => call.name === slow).signal.aborted, true);
+    const listed = (await h.rpc("tools/list")).result.tools;
+    assert.ok(listed.some((tool) => tool.name === "read"));
+    assert.ok(listed.every((tool) => !WRITES.includes(tool.name)));
+    const result = await h.call("read", { uri: URI });
+    assert.equal(result.isError, false);
+    assert.ok(result.content.some((part) => part.text.includes(`${healthy} distinct body`)));
+    assert.equal(result.structuredContent.sources.find((source) => source.source === slow).ok, false);
+  });
+}
+
+test("discovery shares one deadline across initialization notifications and tools/list", { timeout: 8000 }, async (t) => {
+  const h = await fixture(t, { timeoutMs: 60000, discoveryDelays: {
+    team: { "notifications/initialized": 3000, "tools/list": 3000 },
+  } });
+  const listing = h.startupCalls.find((call) => call.name === "team" && call.body?.method === "tools/list");
+  assert.equal(listing.signal.aborted, true);
+  const result = await h.call("read", { uri: URI });
+  assert.equal(result.isError, false);
+  assert.deepEqual(result.structuredContent.sources.map((source) => source.ok), [true, false]);
+});
+
+test("combined MCP fails when both sources are unreachable", async (t) => {
+  await assert.rejects(fixture(t, { offline: ["local", "team"] }), /No OpenViking read source is reachable/);
+});
+
+test("combined reads report failure when both previously healthy sources go offline", async (t) => {
+  const h = await fixture(t);
+  h.unavailable.add("local");
+  h.unavailable.add("team");
+  const result = await h.call("read", { uri: URI });
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.structuredContent.sources.map((source) => source.ok), [false, false]);
+});
 
 test("a timed-out source aborts without discarding the other library's results", { timeout: 5000 }, async (t) => {
   const h = await fixture(t);

@@ -95,8 +95,8 @@ function normalizeAuthMode(val) {
   return ["trusted", "api_key"].includes(mode) ? mode : "";
 }
 
-export function loadConfig() {
-  const creds = resolveOpenVikingCredentials();
+export function loadConfig(env = process.env) {
+  const creds = resolveOpenVikingCredentials(env);
   const { cliPath, ovFile, ovPath } = creds;
   const configPath = cliPath || ovPath || null;
 

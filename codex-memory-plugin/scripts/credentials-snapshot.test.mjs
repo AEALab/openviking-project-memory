@@ -137,3 +137,49 @@ test("explicit and legacy CLI config overrides preserve credentials and tuning",
   assert.equal(config.ovConfigPath, "");
   assert.equal(config.recallLimit, 12);
 });
+
+function sharedFixture(t) {
+  const f = fixture(t);
+  const path = join(process.env.HOME, ".openviking", "shared-team.conf");
+  fs.renameSync(f.path, path);
+  fs.writeFileSync(f.registry, "{}");
+  const routingPath = join(process.env.HOME, ".openviking", "read-routing.json");
+  const routing = { mode: "separate", writeDirectories: { [process.cwd()]: "team" },
+    sources: { team: path }, sourceUrls: { team: f.original.url } };
+  fs.writeFileSync(routingPath, JSON.stringify(routing));
+  return { ...f, path, routingPath, routing };
+}
+
+for (const change of ["replaced", "corrupted", "removed"]) {
+  test(`shared credentials retain one validated snapshot if the source is ${change} after reading`, (t) => {
+    const f = sharedFixture(t);
+    const reads = changeAfterRead(t, f.path, () => {
+      if (change === "removed") fs.rmSync(f.path);
+      else fs.writeFileSync(f.path, change === "corrupted" ? "{" : JSON.stringify({ url: "https://unapproved.example", api_key: "other-key" }));
+    });
+    const config = loadConfig();
+    assert.equal(config.baseUrl, f.original.url);
+    assert.equal(config.apiKey, f.original.api_key);
+    assert.equal(config.recallLimit, 12);
+    assert.equal(config.autoCapture, false);
+    assert.equal(reads(), 1);
+    assert.throws(() => loadConfig(), /Invalid shared/);
+  });
+}
+
+test("shared environment reuse revalidates URL approval and prevents removal or path fallback", (t) => {
+  const f = sharedFixture(t);
+  const env = projectEnvironment({});
+  assert.equal(loadConfig(env).apiKey, f.original.api_key);
+  for (const changed of [
+    { ...f.routing, sourceUrls: {} }, { ...f.routing, writeDirectories: {} },
+    { ...f.routing, sources: { team: join(process.env.HOME, ".openviking", "other.conf") } },
+  ]) {
+    fs.writeFileSync(f.routingPath, JSON.stringify(changed));
+    assert.throws(() => loadConfig(env), /Invalid shared/);
+    assert.throws(() => resolveOpenVikingCredentials(env), /Invalid shared/);
+  }
+  fs.writeFileSync(f.routingPath, JSON.stringify(f.routing));
+  fs.writeFileSync(f.path, JSON.stringify({ ...f.original, api_key: "rotated-key" }));
+  assert.equal(loadConfig(env).apiKey, "rotated-key");
+});

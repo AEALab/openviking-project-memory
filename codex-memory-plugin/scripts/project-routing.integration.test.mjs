@@ -247,3 +247,63 @@ test("MCP config remains pinned when an approved project's URL or key changes", 
   assert.deepEqual(f.localServer.calls, []);
   assert.deepEqual(f.teamServer.calls, []);
 });
+
+test("shared user connections route hooks and MCP without project credentials and write only to the selected library", { timeout: 30000 }, async (t) => {
+  const f = await fixture(t);
+  const shared = join(f.home, ".openviking", "team.conf");
+  await writeFile(shared, await readFile(f.teamConfig));
+  await rm(f.teamConfig);
+  await writeFile(join(f.home, ".openviking", "project-configs.json"), "{}");
+  await writeFile(join(f.home, ".openviking", "read-routing.json"), JSON.stringify({
+    mode: "combined", sources: { local: join(f.home, ".openviking", "ovcli.conf"), team: shared },
+    sourceUrls: { team: f.teamServer.url }, writeDirectories: { [f.team]: "team", [f.normal]: "default" },
+  }));
+  const recall = await runScript(join(SCRIPT_DIR, "auto-recall.mjs"), f.nested, f.env, {
+    session_id: "routing-shared", prompt: "Recall the synthetic routing fixture.",
+  });
+  assertSuccess(recall);
+  const context = JSON.parse(recall.stdout).hookSpecificOutput.additionalContext;
+  assert.match(context, /Synthetic local memory/);
+  assert.match(context, /Synthetic team memory/);
+  const capture = await runScript(join(SCRIPT_DIR, "auto-capture.mjs"), f.nested, f.env, {
+    session_id: "routing-shared", transcript_path: f.transcript,
+  });
+  assertSuccess(capture);
+  assert.match(JSON.parse(capture.stdout).systemMessage, /appended 2 turn\(s\)/);
+  assert.equal(f.localServer.calls.some((call) => call.path.endsWith("/messages/batch")), false);
+  assert.equal(f.teamServer.calls.filter((call) => call.path.endsWith("/messages/batch")).length, 1);
+  const proxy = await runScript(MCP_PROXY, f.nested, f.env, null, { mcp: true });
+  assertSuccess(proxy);
+  const messages = proxy.stdout.trim().split("\n").map((line) => JSON.parse(line));
+  assert.ok(messages.find((message) => message.id === 2).result.tools.some((tool) => tool.name === "team_tool"));
+  await assert.rejects(readFile(f.teamConfig), { code: "ENOENT" });
+  const state = await readdir(join(f.home, ".openviking", "codex-plugin-state"));
+  assert.ok(state.some((name) => /^[a-f0-9]{16}$/.test(name)));
+});
+
+test("broken or unapproved shared connections block all hooks and MCP before HTTP", { timeout: 30000 }, async (t) => {
+  const f = await fixture(t);
+  const shared = join(f.home, ".openviking", "team.conf");
+  const config = await readFile(f.teamConfig);
+  await rm(f.teamConfig);
+  await writeFile(join(f.home, ".openviking", "project-configs.json"), "{}");
+  for (const kind of ["malformed", "missing", "unapproved", "changed-url"]) {
+    await writeFile(shared, kind === "malformed" ? "{" : config);
+    if (kind === "missing") await rm(shared);
+    await writeFile(join(f.home, ".openviking", "read-routing.json"), JSON.stringify({
+      mode: "separate", sources: { team: shared }, writeDirectories: { [f.team]: "team" },
+      sourceUrls: kind === "unapproved" ? {} : { team: kind === "changed-url" ? f.localServer.url : f.teamServer.url },
+    }));
+    for (const script of [...HOOK_SCRIPTS, MCP_PROXY]) {
+      const result = await runScript(script, f.nested, f.env, {
+        session_id: "routing-shared", source: "resume", prompt: "Synthetic prompt", transcript_path: f.transcript,
+      }, { mcp: script === MCP_PROXY });
+      assert.equal(result.signal, null, result.stderr);
+      assert.notEqual(result.code, 0);
+      assert.match(result.stderr, /Invalid shared OpenViking connection/);
+      assert.equal(result.stdout, "");
+    }
+  }
+  assert.deepEqual(f.localServer.calls, []);
+  assert.deepEqual(f.teamServer.calls, []);
+});

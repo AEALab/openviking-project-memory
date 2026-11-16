@@ -95,9 +95,9 @@ export function install({
     saveConfig(configPath, current, next);
     committed = true;
     const enabled = config.plugins[PLUGIN_ID].enabled && config.mcp_servers["openviking-memory"].enabled;
-    log("OpenViking Project Memory registered. Global plugin and MCP: " + (enabled ? "enabled" : "existing disabled settings preserved") + ".");
-    if (backup) log("Previous Codex configuration: " + backup);
-    log("Server connection: run openviking-project-memory setup if not configured. Restart Codex and open a new chat to apply.");
+    log("OpenViking Project Memory 已注册。全局插件与独立 MCP：" + (enabled ? "已开启（保留原设置）" : "存在关闭设置；首次注册默认关闭，请在配置向导中选择使用范围") + "。");
+    if (backup) log("原 Codex 配置备份：" + backup);
+    log("配置默认库与项目规则：openviking-project-memory setup。保存后请重启 Codex 并新建聊天。");
     return { configPath, backup };
   } catch (error) {
     // plugin add may enable the plugin before failing; restore only our flag, retaining unrelated edits.

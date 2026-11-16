@@ -214,7 +214,8 @@ export function createOpenVikingMcpProxy({
     }
     const name = message.params?.name;
     if (!localTools().some((tool) => tool?.name === name)) return null;
-    if (!validateConfig) reloadIfCredentialFilesChanged("local_tool_call");
+    if (validateConfig) validateConfig();
+    else reloadIfCredentialFilesChanged("local_tool_call");
     return localToolProvider.callTool(message.params, { config: proxyConfig });
   }
 
@@ -306,6 +307,8 @@ export function createOpenVikingMcpProxy({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
+      // Community: recheck approval after queueing and before every send, including retries.
+      validateConfig?.();
       const res = await fetchImpl(proxyConfig.mcpUrl, {
         method: "POST",
         redirect: "error",
@@ -337,6 +340,7 @@ export function createOpenVikingMcpProxy({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DELETE_TIMEOUT_MS);
     try {
+      validateConfig?.();
       await fetchImpl(proxyConfig.mcpUrl, {
         method: "DELETE",
         redirect: "error",
@@ -423,7 +427,6 @@ export function createOpenVikingMcpProxy({
     }
 
     try {
-      if (message.method === "tools/call" || message.method === "tools/list") validateConfig?.();
       const localResult = await callLocalTool(message);
       if (localResult !== null) {
         if (expectsResponse) {

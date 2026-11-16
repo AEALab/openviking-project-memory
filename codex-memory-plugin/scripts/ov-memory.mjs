@@ -51,16 +51,20 @@ function planFor(cfg, routing, cwd, path) {
   }
 }
 
-function updateRouting(routing, options, cwd) {
-  if (options.global) return { ...routing, mode: options.mode };
-  const directories = { ...routing.directories };
+export function updateRouting(routing, options, cwd) {
+  if (options.write && (options.global || !["local", "team", "default", "inherit"].includes(options.mode))) {
+    throw new Error("Invalid OpenViking write routing mode");
+  }
+  if (options.global && !options.write) return { ...routing, mode: options.mode };
+  const field = options.write ? "writeDirectories" : "directories";
+  const directories = { ...routing[field] };
   for (const directory of Object.keys(directories)) {
     const expanded = directory.startsWith("~/") ? join(homedir(), directory.slice(2)) : directory;
     if (canonicalDirectory(expanded) === cwd && (options.mode === "inherit" || directory !== cwd)) delete directories[directory];
   }
   if (options.mode !== "inherit") directories[cwd] = options.mode;
-  if (!routing.directories && !Object.keys(directories).length) return routing;
-  return { ...routing, directories };
+  if (!routing[field] && !Object.keys(directories).length) return routing;
+  return { ...routing, [field]: directories };
 }
 
 function writeRouting(path, bytes, routing) {

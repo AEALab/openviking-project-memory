@@ -191,12 +191,25 @@ for (const behavior of ["recall", "fallback"]) {
   });
 }
 
-test("an offline primary does not discard secondary recall or startup profile", async () => {
-  await fixture(async ({ local, run }) => {
-    await local.close();
-    local.close = async () => {};
-    assert.match(context(await run("auto-recall.mjs", recallInput)), /team unique memory/);
-    assert.match(context(await run("session-start-commit.mjs", startupInput)), /team unique profile/);
+for (const offline of ["local", "team"]) {
+  test(`an offline ${offline} does not discard the other library's recall or startup profile`, async () => {
+    await fixture(async ({ local, team, run }) => {
+      const server = offline === "local" ? local : team;
+      const healthy = offline === "local" ? "team" : "local";
+      await server.close();
+      server.close = async () => {};
+      assert.match(context(await run("auto-recall.mjs", recallInput)), new RegExp(`${healthy} unique memory`));
+      assert.match(context(await run("session-start-commit.mjs", startupInput)), new RegExp(`${healthy} unique profile`));
+    });
+  });
+}
+
+test("hooks return no memory when both libraries are offline", async () => {
+  await fixture(async ({ local, team, run }) => {
+    await Promise.all([local.close(), team.close()]);
+    local.close = team.close = async () => {};
+    assert.equal(context(await run("auto-recall.mjs", recallInput)), "");
+    assert.equal(context(await run("session-start-commit.mjs", startupInput)), "");
   });
 });
 

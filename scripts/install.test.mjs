@@ -59,7 +59,7 @@ test("registers once per install, preserves user settings and private backups, a
   const config = parse(saved);
   assert.equal(config.model, "existing-model");
   assert.equal(config.mcp_servers.other.command, "other-tool");
-  assert.equal(config.plugins[PLUGIN].enabled, true);
+  assert.equal(config.plugins[PLUGIN].enabled, false);
   assert.equal(config.mcp_servers["openviking-memory"].args[0], join(f.options.packageRoot, "codex-memory-plugin/servers/mcp-proxy.mjs"));
   assert.equal(config.plugins[PLUGIN].mcp_servers["openviking-memory"].enabled, false);
   install(f.options);
@@ -130,7 +130,7 @@ test("failure after Codex enables a plugin restores the original flag and retain
     assert.equal(restored.plugins?.[PLUGIN]?.enabled, existed ? false : undefined);
     install(f.options);
     const retried = parse(readFileSync(f.configPath, "utf8"));
-    assert.equal(retried.plugins[PLUGIN].enabled, !existed);
+    assert.equal(retried.plugins[PLUGIN].enabled, false);
   }
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "@haowux/openviking-project-memory",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "description": "Community-enhanced OpenViking memory plugin for Codex",
   "license": "Apache-2.0",
   "author": "haowux",
@@ -42,5 +42,11 @@
   "publishConfig": {
     "access": "public"
   },
-  "keywords": ["openviking", "codex", "memory", "plugin", "mcp"]
+  "keywords": [
+    "openviking",
+    "codex",
+    "memory",
+    "plugin",
+    "mcp"
+  ]
 }

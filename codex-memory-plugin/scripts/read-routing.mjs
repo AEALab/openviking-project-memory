@@ -20,9 +20,9 @@ export function readIdentity(config) {
   ]);
 }
 
-function sourceConfig(name, path, primaryCfg) {
+export function sourceConfig(name, path, primaryCfg, file) {
   try {
-    const file = JSON.parse(readFileSync(path, "utf8"));
+    file ??= JSON.parse(readFileSync(path, "utf8"));
     if (!file || typeof file !== "object" || Array.isArray(file)) throw new Error();
     for (const key of ["url", "api_key", "account", "account_id", "user", "user_id", "actor_peer_id", "peer_id"]) {
       if (file[key] !== undefined && typeof file[key] !== "string") throw new Error();
@@ -34,8 +34,10 @@ function sourceConfig(name, path, primaryCfg) {
       || !text(file.api_key)) throw new Error();
     const account = text(file.account) || text(file.account_id);
     const user = text(file.user) || text(file.user_id);
-    const plugin = file.plugin || {};
-    const scoped = plugin.codex || {};
+    const plugin = file.plugin ?? {};
+    const scoped = plugin.codex ?? {};
+    if (typeof plugin !== "object" || Array.isArray(plugin)
+      || typeof scoped !== "object" || Array.isArray(scoped)) throw new Error();
     const explicitMode = scoped.authMode ?? scoped.auth_mode
       ?? plugin.authMode ?? plugin.auth_mode ?? file.authMode ?? file.auth_mode;
     const authMode = explicitMode === undefined
@@ -69,22 +71,18 @@ export function canonicalDirectory(path) {
   }
 }
 
-export function resolveReadMode(routing, cwd = process.cwd()) {
-  if (!routing || typeof routing !== "object" || Array.isArray(routing)
-    || !["separate", "combined"].includes(routing.mode)) {
-    throw new Error("Invalid OpenViking read routing");
-  }
-  let mode = routing.mode;
+function resolveDirectoryRule(directories, cwd, values) {
+  let value = null;
   let matchedDirectory = null;
-  if (routing.directories !== undefined) {
-    if (!routing.directories || typeof routing.directories !== "object" || Array.isArray(routing.directories)) {
+  if (directories !== undefined) {
+    if (!directories || typeof directories !== "object" || Array.isArray(directories)) {
       throw new Error("Invalid OpenViking read routing directories");
     }
     const current = canonicalDirectory(cwd);
     let closest = "";
-    for (const [directory, override] of Object.entries(routing.directories)) {
+    for (const [directory, override] of Object.entries(directories)) {
       const expanded = directory.startsWith("~/") ? join(homedir(), directory.slice(2)) : directory;
-      if (!isAbsolute(expanded) || !["separate", "combined"].includes(override)) {
+      if (!isAbsolute(expanded) || !values.includes(override)) {
         throw new Error("Invalid OpenViking read routing directory");
       }
       const path = canonicalDirectory(expanded);
@@ -92,16 +90,33 @@ export function resolveReadMode(routing, cwd = process.cwd()) {
       if ((child === "" || (!isAbsolute(child) && child !== ".." && !child.startsWith(".." + sep)))
         && path.length > closest.length) {
         closest = path;
-        mode = override;
+        value = override;
         matchedDirectory = directory;
       }
     }
   }
-  return { mode, matchedDirectory };
+  return { value, matchedDirectory };
+}
+
+export function resolveReadMode(routing, cwd = process.cwd()) {
+  if (!routing || typeof routing !== "object" || Array.isArray(routing)
+    || !["separate", "combined"].includes(routing.mode)) {
+    throw new Error("Invalid OpenViking read routing");
+  }
+  const { value, matchedDirectory } = resolveDirectoryRule(routing.directories, cwd, ["separate", "combined"]);
+  return { mode: value ?? routing.mode, matchedDirectory };
+}
+
+export function resolveWriteSource(routing, cwd = process.cwd()) {
+  if (!routing || typeof routing !== "object" || Array.isArray(routing)) {
+    throw new Error("Invalid OpenViking read routing");
+  }
+  const { value, matchedDirectory } = resolveDirectoryRule(routing.writeDirectories, cwd, ["local", "team", "default"]);
+  return { source: value, matchedDirectory };
 }
 
 export function resolveReadRouting(primaryCfg, routing, cwd = process.cwd(),
-  routingPath = join(homedir(), ".openviking", "read-routing.json")) {
+  routingPath = join(homedir(), ".openviking", "read-routing.json"), readSource = sourceConfig) {
   const separate = {
     mode: "separate", sources: [{ name: "current", config: primaryCfg, primary: true }],
     watchedPaths: [routingPath],
@@ -121,7 +136,7 @@ export function resolveReadRouting(primaryCfg, routing, cwd = process.cwd(),
     if (!path || !isAbsolute(path)) throw new Error("OpenViking read source path must be absolute: " + name);
     path = resolve(path);
     watchedPaths.push(path);
-    let config = sourceConfig(name, path, primaryCfg);
+    let config = readSource(name, path, primaryCfg);
     const primary = readIdentity(config) === readIdentity(primaryCfg);
     if (primary) config = { ...config, ...primaryCfg, mcpUrl: primaryCfg.mcpUrl || config.mcpUrl };
     else if (config.recallPeerScope === "actor" && !config.peerId) {

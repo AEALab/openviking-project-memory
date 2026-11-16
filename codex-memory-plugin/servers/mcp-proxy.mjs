@@ -9,9 +9,11 @@
  * requests to the server's /mcp endpoint, and keeps stdout protocol-clean.
  */
 
-import { resolve as resolvePath } from "node:path";
+import { join, resolve as resolvePath } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../scripts/config.mjs";
+import { projectEnvironment } from "../scripts/project-config.mjs";
 import { loadReadRouting, normalizeConnectionUrl } from "../scripts/read-routing.mjs";
 import { createCombinedReadProxy } from "./combined-read.mjs";
 import { createLogger } from "../scripts/debug-log.mjs";
@@ -26,9 +28,11 @@ export { createOpenVikingMcpProxy } from "../scripts/shared/mcp-proxy-core.mjs";
 let connectionIdentity;
 let readMode;
 let currentReadPlan;
+let projectEnv;
 
 export function readProxyConfig() {
-  const cfg = loadConfig();
+  projectEnv = projectEnvironment(projectEnv ?? process.env);
+  const cfg = loadConfig(projectEnv);
   const plan = loadReadRouting(cfg);
   const peerId = resolveMcpActorPeerId(cfg);
   const identity = JSON.stringify([normalizeConnectionUrl(cfg.baseUrl).replace(/\/+$/, ""),
@@ -46,7 +50,8 @@ export function readProxyConfig() {
   return buildMcpProxyConfig({
     ...cfg, peerId,
     credentialPath: cfg.configPath,
-    watchedPaths: [cfg.cliConfigPath, cfg.ovConfigPath],
+    watchedPaths: [cfg.cliConfigPath, cfg.ovConfigPath, ...plan.watchedPaths,
+      join(homedir(), ".openviking", "project-configs.json")],
   });
 }
 

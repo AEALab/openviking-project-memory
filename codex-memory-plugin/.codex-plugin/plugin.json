@@ -1,6 +1,6 @@
 {
   "name": "openviking-memory",
-  "version": "0.7.7-project.6",
+  "version": "0.7.7-project.9",
   "description": "Community extension: directory-level single/combined reads with project-isolated writes.",
   "author": {
     "name": "OpenViking",
